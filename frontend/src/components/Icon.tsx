@@ -242,3 +242,13 @@ export function LoginIcon(props: IconProps) {
     </Svg>
   );
 }
+
+export function UsersIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <circle cx="9.5" cy="8" r="3.2" />
+      <path d="M3.5 19.5a6 6 0 0 1 12 0" />
+      <path d="M16 5.2a3.2 3.2 0 0 1 0 5.6M17.5 14.4a6 6 0 0 1 3 5.1" />
+    </Svg>
+  );
+}
