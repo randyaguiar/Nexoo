@@ -1,6 +1,7 @@
 import type { PostgrestError } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import type {
+  ActivityEntry,
   AdminRole,
   AdminUser,
   AdminUserInput,
@@ -46,6 +47,7 @@ interface ProductRow {
   price_usd: number;
   photo_url: string | null;
   available: boolean;
+  stock: number | null;
 }
 
 const toBusiness = (row: BusinessRow, productCount: number): Business => ({
@@ -74,6 +76,7 @@ const toProduct = (row: ProductRow): Product => ({
   priceUsd: Number(row.price_usd),
   photoUrl: row.photo_url,
   available: row.available,
+  stock: Number(row.stock ?? 0),
 });
 
 interface OrderItemRow {
@@ -139,6 +142,7 @@ const toRow = (input: ProductInput) => ({
   price_usd: input.priceUsd,
   photo_url: input.photoUrl,
   available: input.available,
+  stock: input.stock,
 });
 
 /**
@@ -198,6 +202,7 @@ interface AdminRow {
   user_id: string;
   email: string;
   role: AdminRole;
+  business_id: string | null;
   created_at: string;
 }
 
@@ -205,7 +210,34 @@ const toAdminUser = (row: AdminRow): AdminUser => ({
   userId: row.user_id,
   email: row.email,
   role: row.role,
+  businessId: row.business_id,
   createdAt: row.created_at,
+});
+
+const ADMIN_COLUMNS = 'user_id, email, role, business_id, created_at';
+
+interface ActivityRow {
+  id: number;
+  at: string;
+  actor_email: string | null;
+  actor_role: AdminRole | null;
+  business_id: string | null;
+  entity: string;
+  entity_id: string | null;
+  action: ActivityEntry['action'];
+  changes: Record<string, unknown> | null;
+}
+
+const toActivityEntry = (row: ActivityRow): ActivityEntry => ({
+  id: row.id,
+  at: row.at,
+  actorEmail: row.actor_email,
+  actorRole: row.actor_role,
+  businessId: row.business_id,
+  entity: row.entity,
+  entityId: row.entity_id,
+  action: row.action,
+  changes: row.changes ?? {},
 });
 
 /**
@@ -559,7 +591,7 @@ export const api = {
       return { deactivated: true };
     },
 
-    async listOrders(status?: OrderStatus | null): Promise<Order[]> {
+    async listOrders(status?: OrderStatus | null, businessId?: string | null): Promise<Order[]> {
       let query = supabase
         .from('orders')
         .select('*, businesses(name), provinces(name), order_items(*)')
@@ -567,6 +599,10 @@ export const api = {
 
       if (status) {
         query = query.eq('status', status);
+      }
+
+      if (businessId) {
+        query = query.eq('business_id', businessId);
       }
 
       const { data, error } = await query;
@@ -586,7 +622,7 @@ export const api = {
 
       const { data, error } = await supabase
         .from('admins')
-        .select('user_id, email, role, created_at')
+        .select(ADMIN_COLUMNS)
         .eq('user_id', auth.user.id)
         .maybeSingle();
 
@@ -597,7 +633,7 @@ export const api = {
     async listUsers(): Promise<AdminUser[]> {
       const { data, error } = await supabase
         .from('admins')
-        .select('user_id, email, role, created_at')
+        .select(ADMIN_COLUMNS)
         .order('created_at');
 
       if (error) fail(error);
@@ -611,16 +647,43 @@ export const api = {
         email: input.email,
         password: input.password || undefined,
         role: input.role,
+        businessId: input.businessId,
       });
     },
 
-    async setUserRole(userId: string, role: AdminRole): Promise<void> {
-      await invokeManageAdmins({ action: 'setRole', userId, role });
+    async setUserRole(
+      userId: string,
+      role: AdminRole,
+      businessId: string | null = null,
+    ): Promise<void> {
+      await invokeManageAdmins({ action: 'setRole', userId, role, businessId });
     },
 
     /** Revoca el acceso al panel; el usuario de auth se conserva. */
     async removeUser(userId: string): Promise<void> {
       await invokeManageAdmins({ action: 'remove', userId });
+    },
+
+    /**
+     * Historial de cambios. La policy solo se lo sirve al admin general, así que
+     * para el resto de roles llega vacío.
+     */
+    async listActivity(
+      filters: { businessId?: string | null; entity?: string | null } = {},
+      limit = 200,
+    ): Promise<ActivityEntry[]> {
+      let query = supabase
+        .from('activity_log')
+        .select('id, at, actor_email, actor_role, business_id, entity, entity_id, action, changes')
+        .order('at', { ascending: false })
+        .limit(limit);
+
+      if (filters.businessId) query = query.eq('business_id', filters.businessId);
+      if (filters.entity) query = query.eq('entity', filters.entity);
+
+      const { data, error } = await query;
+      if (error) fail(error);
+      return ((data ?? []) as ActivityRow[]).map(toActivityEntry);
     },
   },
 };

@@ -1613,3 +1613,48 @@ label.button {
   gap: var(--space-3);
   margin-top: var(--space-5);
 }
+
+/* Dashboard del negocio: tarjetas de métricas e historial de cambios. */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+
+.stat-card {
+  padding: var(--space-4);
+  background: var(--nexoo-surface);
+  border: 1px solid var(--nexoo-border);
+  border-radius: var(--nexoo-radius);
+}
+
+.stat-card .stat-label {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--nexoo-muted);
+  margin-bottom: var(--space-1);
+}
+
+.stat-card .stat-value {
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.stat-card.warn .stat-value {
+  color: var(--nexoo-danger);
+}
+
+.activity-changes {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--nexoo-muted);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.low-stock {
+  color: var(--nexoo-danger);
+  font-weight: 600;
+}

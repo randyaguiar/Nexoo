@@ -89,6 +89,8 @@ export interface Product {
   priceUsd: number;
   photoUrl: string | null;
   available: boolean;
+  /** Unidades en inventario; el trabajador es quien lo mantiene al día. */
+  stock: number;
 }
 
 export interface BusinessDetail {
@@ -156,22 +158,43 @@ export interface ProductInput {
   priceUsd: number;
   photoUrl: string | null;
   available: boolean;
+  stock: number;
 }
 
-export type AdminRole = 'owner' | 'staff';
+/** Por debajo de esta cantidad el dashboard marca el producto como bajo de stock. */
+export const LOW_STOCK_THRESHOLD = 5;
+
+/**
+ * `owner` es el admin general (acceso a todo, incluido el historial); `staff` es
+ * el rol global heredado; `business_admin` y `worker` están atados a un negocio.
+ */
+export type AdminRole = 'owner' | 'staff' | 'business_admin' | 'worker';
 
 export const ADMIN_ROLES: { value: AdminRole; label: string }[] = [
-  { value: 'owner', label: 'Owner' },
-  { value: 'staff', label: 'Staff' },
+  { value: 'owner', label: 'Admin general' },
+  { value: 'staff', label: 'Staff global' },
+  { value: 'business_admin', label: 'Admin de negocio' },
+  { value: 'worker', label: 'Trabajador' },
 ];
 
 export const adminRoleLabel = (role: AdminRole): string =>
   ADMIN_ROLES.find((r) => r.value === role)?.label ?? role;
 
+/** Roles que pertenecen a un negocio concreto y solo ven lo suyo. */
+export const BUSINESS_SCOPED_ROLES: AdminRole[] = ['business_admin', 'worker'];
+
+export const isBusinessScoped = (role: AdminRole): boolean =>
+  BUSINESS_SCOPED_ROLES.includes(role);
+
+/** Acceso global al panel: todos los negocios, la taxonomía y los pedidos. */
+export const isGlobalRole = (role: AdminRole): boolean => role === 'owner' || role === 'staff';
+
 export interface AdminUser {
   userId: string;
   email: string;
   role: AdminRole;
+  /** Negocio al que pertenece; null en los roles globales. */
+  businessId: string | null;
   createdAt: string;
 }
 
@@ -180,7 +203,35 @@ export interface AdminUserInput {
   /** Vacío: se envía una invitación por email en lugar de fijar la contraseña. */
   password: string;
   role: AdminRole;
+  businessId: string | null;
 }
+
+/** Una línea del historial de cambios; solo el admin general puede leerlo. */
+export interface ActivityEntry {
+  id: number;
+  at: string;
+  actorEmail: string | null;
+  actorRole: AdminRole | null;
+  businessId: string | null;
+  entity: string;
+  entityId: string | null;
+  action: 'insert' | 'update' | 'delete';
+  changes: Record<string, unknown>;
+}
+
+const ACTIVITY_ENTITIES: Record<string, string> = {
+  businesses: 'Negocio',
+  products: 'Producto',
+  orders: 'Pedido',
+  admins: 'Usuario del panel',
+  categories: 'Categoría',
+};
+
+export const activityEntityLabel = (entity: string): string =>
+  ACTIVITY_ENTITIES[entity] ?? entity;
+
+export const activityActionLabel = (action: ActivityEntry['action']): string =>
+  ({ insert: 'Creación', update: 'Modificación', delete: 'Eliminación' })[action];
 
 /** Perfil del comprador; se guarda en `user_metadata` de Supabase Auth. */
 export interface UserProfile {
