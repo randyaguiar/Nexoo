@@ -241,6 +241,8 @@ async function invokeManageAdmins(body: Record<string, unknown>): Promise<void> 
   throw new Error(error.message);
 }
 
+const BUSINESS_LOGOS_BUCKET = 'business-logos';
+
 export const api = {
   async listProvinces(): Promise<ProvinceRef[]> {
     const { data, error } = await supabase
@@ -459,6 +461,23 @@ export const api = {
     async deleteCategory(id: string): Promise<void> {
       const { error } = await supabase.from('categories').delete().eq('id', id);
       if (error) fail(error);
+    },
+
+    /**
+     * Sube el logo al bucket público `business-logos` y devuelve su URL.
+     * El nombre incluye un aleatorio para no pisar logos de otros negocios.
+     */
+    async uploadBusinessLogo(file: File): Promise<string> {
+      const extension = file.name.split('.').pop()?.toLowerCase() ?? 'png';
+      const path = `${crypto.randomUUID()}.${extension}`;
+
+      const { error } = await supabase.storage
+        .from(BUSINESS_LOGOS_BUCKET)
+        .upload(path, file, { contentType: file.type, upsert: false });
+      if (error) throw new Error(error.message);
+
+      const { data } = supabase.storage.from(BUSINESS_LOGOS_BUCKET).getPublicUrl(path);
+      return data.publicUrl;
     },
 
     async createBusiness(input: BusinessInput): Promise<void> {

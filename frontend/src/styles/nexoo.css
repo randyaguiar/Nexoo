@@ -1044,24 +1044,6 @@ th {
   flex: none;
 }
 
-.input-icon {
-  position: relative;
-  display: block;
-}
-
-.input-icon > svg {
-  position: absolute;
-  left: 12px;
-  top: 13px;
-  color: var(--nexoo-muted);
-  pointer-events: none;
-}
-
-.input-icon > input,
-.input-icon > select {
-  padding-left: 36px;
-}
-
 .form-title {
   display: flex;
   align-items: center;
@@ -1242,4 +1224,57 @@ th {
 
 .row-actions button.link:hover:not(:disabled) {
   text-decoration: underline;
+}
+
+/* --------------------------- Subida de logo ---------------------------- */
+
+.logo-upload {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.logo-upload-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.logo-upload-actions .field-hint {
+  margin: 0;
+  flex-basis: 100%;
+}
+
+.logo-upload-placeholder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  flex: none;
+  border: 1px dashed var(--nexoo-border-strong);
+  border-radius: var(--nexoo-radius-sm);
+  color: var(--nexoo-muted);
+  background: var(--nexoo-surface-alt);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* El input de archivo se dispara desde su label, que se ve como un botón. */
+label.button {
+  margin-bottom: 0;
+}
+
+.visually-hidden:focus-visible + label.button {
+  box-shadow: var(--nexoo-ring);
 }
