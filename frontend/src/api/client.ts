@@ -272,6 +272,14 @@ async function invokeManageAdmins(body: Record<string, unknown>): Promise<void> 
     if (payload?.error) throw new Error(payload.error);
   }
 
+  // No hubo respuesta: la función no está desplegada, o el navegador cortó la
+  // llamada (CORS). El mensaje de supabase-js no dice ninguna de las dos cosas.
+  if (error.name === 'FunctionsFetchError') {
+    throw new Error(
+      'No se pudo contactar con la función manage-admins. Comprueba que está desplegada en Supabase (supabase functions deploy manage-admins).',
+    );
+  }
+
   throw new Error(error.message);
 }
 

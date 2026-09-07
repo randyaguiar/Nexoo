@@ -36,8 +36,12 @@ type Payload = InviteAction | SetRoleAction | RemoveAction;
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, content-type',
+  // supabase-js manda también apikey y x-client-info: si el preflight no las
+  // permite, el navegador corta la llamada antes de que la función responda y
+  // el panel solo ve "Failed to send a request to the Edge Function".
+  'Access-Control-Allow-Headers': 'authorization, content-type, apikey, x-client-info',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Max-Age': '86400',
 };
 
 const json = (body: unknown, status = 200): Response =>
