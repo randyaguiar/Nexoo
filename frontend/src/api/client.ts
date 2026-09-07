@@ -19,6 +19,7 @@ import type {
   Province,
   ProvinceInput,
   ProvinceRef,
+  UserProfile,
 } from './types';
 
 /** Las tablas usan snake_case; la UI trabaja en camelCase. */
@@ -364,6 +365,23 @@ export const api = {
 
     async logout(): Promise<void> {
       await supabase.auth.signOut();
+    },
+
+    /** Guarda el perfil en `user_metadata`; no hay tabla propia de compradores. */
+    async updateProfile(profile: UserProfile): Promise<void> {
+      const { error } = await supabase.auth.updateUser({
+        data: {
+          full_name: profile.fullName.trim(),
+          phone: profile.phone.trim(),
+          order_emails: profile.orderEmails,
+        },
+      });
+      if (error) throw new Error(translateAuthError(error.message));
+    },
+
+    async updatePassword(password: string): Promise<void> {
+      const { error } = await supabase.auth.updateUser({ password });
+      if (error) throw new Error(translateAuthError(error.message));
     },
 
     /** Los pedidos hechos con la sesión iniciada; los anónimos no aparecen aquí. */

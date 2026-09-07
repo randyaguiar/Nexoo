@@ -197,6 +197,9 @@ img {
 }
 
 .header-nav a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 8px 12px;
   border-radius: 999px;
   color: var(--nexoo-ink);
@@ -244,6 +247,113 @@ img {
   font-size: 0.75rem;
   font-weight: 700;
   line-height: 20px;
+}
+
+/* Menú de la cuenta */
+
+.user-menu {
+  position: relative;
+}
+
+.user-menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px 5px 5px;
+  border-radius: 999px;
+  background: var(--nexoo-surface-alt);
+  color: var(--nexoo-ink);
+  font-size: inherit;
+  font-weight: 600;
+}
+
+.user-menu-trigger:hover:not(:disabled) {
+  background: #e6e9ee;
+  color: var(--nexoo-ink);
+}
+
+.user-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--nexoo-primary);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.user-menu-name {
+  max-width: 12ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-menu-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 30;
+  min-width: 240px;
+  padding: var(--space-2);
+  background: var(--nexoo-surface);
+  border: 1px solid var(--nexoo-border);
+  border-radius: var(--nexoo-radius-sm);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.14);
+}
+
+.user-menu-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3) var(--space-3);
+  border-bottom: 1px solid var(--nexoo-border);
+  margin-bottom: var(--space-2);
+}
+
+.user-menu-header span {
+  font-size: 0.82rem;
+  color: var(--nexoo-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.user-menu-panel a,
+.user-menu-panel button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: var(--nexoo-radius-sm);
+  background: none;
+  color: var(--nexoo-ink);
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-align: left;
+}
+
+.user-menu-panel a:hover,
+.user-menu-panel button:hover:not(:disabled) {
+  background: var(--nexoo-surface-alt);
+  color: var(--nexoo-ink);
+  text-decoration: none;
+}
+
+.account-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: var(--space-4);
+  align-items: start;
+}
+
+@media (max-width: 640px) {
+  .user-menu-name {
+    display: none;
+  }
 }
 
 /* ------------------------------- Layout -------------------------------- */

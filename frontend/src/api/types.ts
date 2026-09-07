@@ -181,3 +181,11 @@ export interface AdminUserInput {
   password: string;
   role: AdminRole;
 }
+
+/** Perfil del comprador; se guarda en `user_metadata` de Supabase Auth. */
+export interface UserProfile {
+  fullName: string;
+  phone: string;
+  /** Recibir por email las actualizaciones de los pedidos. */
+  orderEmails: boolean;
+}
