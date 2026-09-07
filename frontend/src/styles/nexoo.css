@@ -203,6 +203,19 @@ img {
   text-decoration: none;
 }
 
+.header-nav button.link {
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-size: inherit;
+  color: var(--nexoo-ink);
+  text-decoration: none;
+}
+
+.header-nav button.link:hover {
+  background: var(--nexoo-surface-alt);
+  color: var(--nexoo-ink);
+}
+
 .header-nav a.cart-link {
   display: inline-flex;
   align-items: center;

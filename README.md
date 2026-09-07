@@ -20,6 +20,7 @@ supabase/seed.sql    catálogo de prueba
 | Catálogo público         | `supabase-js` → PostgREST, con policies de solo lectura      |
 | Creación de pedidos      | RPC `create_order()` (`SECURITY DEFINER`)                    |
 | Confirmación del pedido  | RPC `get_order()`, el id del pedido actúa como token         |
+| Cuentas de compradores   | Supabase Auth (email + contraseña); `orders.user_id`         |
 | Login y panel admin      | Supabase Auth + policies contra la tabla `admins`            |
 | Gestión de usuarios      | Edge Function `manage-admins` (service role) + rol `owner`   |
 | Aviso de pedido al admin | Database Webhook → Edge Function `notify-new-order` → Resend |
@@ -30,7 +31,7 @@ supabase/seed.sql    catálogo de prueba
 | ------------- | --------------------------------------------------------------------------------------------------------- |
 | `businesses`  | name, description, province, municipality, contact_phone, active                                            |
 | `products`    | business_id, name, price_usd, photo_url, available                                                          |
-| `orders`      | buyer_*, recipient_* (nombre, teléfono, provincia, municipio, dirección), business_id, status, total_usd     |
+| `orders`      | buyer_*, recipient_* (nombre, teléfono, provincia, municipio, dirección), business_id, status, total_usd, user_id |
 | `order_items` | order_id, product_id, product_name, quantity, unit_price                                                    |
 | `admins`      | user_id (→ `auth.users`), email, role (`owner` \| `staff`)                                                   |
 
@@ -39,8 +40,15 @@ supabase/seed.sql    catálogo de prueba
 
 ## Reglas de negocio y por qué viven en la base de datos
 
-El comprador es anónimo, así que **no puede escribir en `orders`**: no hay policy de insert para el
-rol `anon`. El checkout llama a `create_order(payload jsonb)`, que:
+Comprar **no exige cuenta**. Quien crea una (registro en `/registro`, login en `/entrar`) ve sus
+pedidos en `/mis-pedidos`: `create_order()` guarda `auth.uid()` en `orders.user_id` y una policy
+deja al comprador leer solo esas filas. Los pedidos hechos sin sesión quedan con `user_id` nulo y
+se siguen consultando únicamente con su id; **no se reclaman después por email**, porque el email
+del pedido no está verificado. Una cuenta de comprador no da ningún acceso al panel: eso lo decide
+la tabla `admins`.
+
+El comprador nunca escribe en `orders`: no hay policy de insert, ni para `anon` ni para
+`authenticated`. El checkout llama a `create_order(payload jsonb)`, que:
 
 - resuelve nombre y precio de cada producto **desde la tabla**, nunca desde el cliente (si no, se
   podría enviar `total_usd = 0`);

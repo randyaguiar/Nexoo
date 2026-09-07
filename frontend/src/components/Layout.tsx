@@ -1,9 +1,18 @@
-import { Link, Outlet } from 'react-router-dom';
+import { Link, Outlet, useNavigate } from 'react-router-dom';
+import { api } from '../api/client';
+import { useAuth } from '../auth/AuthContext';
 import { useCart } from '../cart/CartContext';
 import { Logo, LogoMark } from './Logo';
 
 export function Layout() {
   const { itemCount } = useCart();
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  const logout = async () => {
+    await api.auth.logout();
+    navigate('/');
+  };
 
   return (
     <>
@@ -23,6 +32,16 @@ export function Layout() {
           </Link>
           <nav className="header-nav" aria-label="Principal">
             <Link to="/">Catálogo</Link>
+            {user ? (
+              <>
+                <Link to="/mis-pedidos">Mis pedidos</Link>
+                <button type="button" className="link" onClick={() => void logout()}>
+                  Salir
+                </button>
+              </>
+            ) : (
+              <Link to="/entrar">Entrar</Link>
+            )}
             <Link to="/carrito" className="cart-link">
               Carrito
               {itemCount > 0 && (
@@ -72,6 +91,11 @@ export function Layout() {
                 </li>
                 <li>
                   <Link to="/carrito">Carrito</Link>
+                </li>
+                <li>
+                  <Link to={user ? '/mis-pedidos' : '/entrar'}>
+                    {user ? 'Mis pedidos' : 'Entrar / Crear cuenta'}
+                  </Link>
                 </li>
               </ul>
             </div>

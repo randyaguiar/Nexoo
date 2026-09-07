@@ -26,6 +26,10 @@ export const ORDER_STATUSES: { value: OrderStatus; label: string }[] = [
 export const orderStatusLabel = (status: OrderStatus): string =>
   ORDER_STATUSES.find((s) => s.value === status)?.label ?? status;
 
+/** Referencia corta y legible del pedido; la Edge Function del aviso usa la misma. */
+export const shortRef = (id: string): string =>
+  id.replace(/-/g, '').slice(0, 8).toUpperCase();
+
 export interface Business {
   id: string;
   name: string;

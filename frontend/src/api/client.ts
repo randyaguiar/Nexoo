@@ -147,6 +147,15 @@ const toAdminUser = (row: AdminRow): AdminUser => ({
  * Las excepciones de las funciones RPC llegan con el mensaje en español que
  * levanta Postgres; el resto se traduce a un texto genérico.
  */
+const AUTH_ERRORS: Record<string, string> = {
+  'Invalid login credentials': 'Credenciales inválidas.',
+  'User already registered': 'Ya existe una cuenta con ese email.',
+  'Email not confirmed': 'Confirma tu email antes de entrar.',
+};
+
+/** Supabase Auth responde en inglés; se traducen los casos frecuentes. */
+const translateAuthError = (message: string): string => AUTH_ERRORS[message] ?? message;
+
 function fail(error: PostgrestError): never {
   throw new Error(error.message || 'No se pudo completar la operación.');
 }
@@ -219,23 +228,39 @@ export const api = {
     return data as Order;
   },
 
-  admin: {
+  auth: {
+    /**
+     * Devuelve true si la cuenta queda lista para usarse. Con la confirmación de
+     * email activada en Supabase, el usuario debe abrir el enlace antes de entrar.
+     */
+    async register(email: string, password: string): Promise<{ needsConfirmation: boolean }> {
+      const { data, error } = await supabase.auth.signUp({ email, password });
+      if (error) throw new Error(translateAuthError(error.message));
+      return { needsConfirmation: data.session === null };
+    },
+
     async login(email: string, password: string): Promise<void> {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (!error) return;
-
-      // Supabase responde en inglés; el único caso frecuente vale la pena traducirlo.
-      throw new Error(
-        error.message === 'Invalid login credentials'
-          ? 'Credenciales inválidas.'
-          : error.message,
-      );
+      if (error) throw new Error(translateAuthError(error.message));
     },
 
     async logout(): Promise<void> {
       await supabase.auth.signOut();
     },
 
+    /** Los pedidos hechos con la sesión iniciada; los anónimos no aparecen aquí. */
+    async listMyOrders(): Promise<Order[]> {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('*, businesses(name), order_items(*)')
+        .order('created_at', { ascending: false });
+
+      if (error) fail(error);
+      return ((data ?? []) as unknown as OrderRow[]).map(toOrder);
+    },
+  },
+
+  admin: {
     async listBusinesses(): Promise<Business[]> {
       const { data, error } = await supabase
         .from('businesses')
