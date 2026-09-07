@@ -13,7 +13,7 @@ const emptyForm: BusinessInput = {
   description: '',
   logoUrl: '',
   municipalityId: '',
-  categoryId: null,
+  categoryIds: [],
   contactPhone: '',
   active: true,
 };
@@ -100,7 +100,7 @@ export function AdminBusinessesPage() {
       description: business.description ?? '',
       logoUrl: business.logoUrl ?? '',
       municipalityId: business.municipalityId ?? '',
-      categoryId: business.categoryId,
+      categoryIds: business.categories.map((c) => c.id),
       contactPhone: business.contactPhone ?? '',
       active: business.active,
     });
@@ -181,22 +181,32 @@ export function AdminBusinessesPage() {
             </select>
           </div>
         </div>
-        <div className="field-row">
-          <div className="field">
-            <label htmlFor="categoryId">Categoría</label>
-            <select
-              id="categoryId"
-              value={form.categoryId ?? ''}
-              onChange={(e) => set('categoryId', e.target.value || null)}
-            >
-              <option value="">Sin categoría</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+        <div className="field">
+          <span className="field-label">Categorías</span>
+          <div className="checkbox-grid">
+            {categories.map((c) => (
+              <label key={c.id} className="checkbox">
+                <input
+                  type="checkbox"
+                  checked={form.categoryIds.includes(c.id)}
+                  onChange={(e) =>
+                    set(
+                      'categoryIds',
+                      e.target.checked
+                        ? [...form.categoryIds, c.id]
+                        : form.categoryIds.filter((id) => id !== c.id),
+                    )
+                  }
+                />
+                {c.name}
+              </label>
+            ))}
           </div>
+          <p className="field-hint">
+            Un negocio puede ofrecer varios servicios (dulcería, panadería, cafetería…).
+          </p>
+        </div>
+        <div className="field-row">
           <div className="field">
             <label htmlFor="logoUrl">URL del logo</label>
             <input
@@ -282,7 +292,11 @@ export function AdminBusinessesPage() {
                     )}
                   </td>
                   <td>{business.name}</td>
-                  <td>{business.categoryName ?? '—'}</td>
+                  <td>
+                    {business.categories.length > 0
+                      ? business.categories.map((c) => c.name).join(', ')
+                      : '—'}
+                  </td>
                   <td>
                     {business.provinceName}, {business.municipality}
                   </td>

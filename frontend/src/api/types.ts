@@ -14,6 +14,11 @@ export interface Municipality {
   active: boolean;
 }
 
+export interface CategoryRef {
+  id: string;
+  name: string;
+}
+
 export interface Category {
   id: string;
   name: string;
@@ -70,8 +75,7 @@ export interface Business {
   provinceName: string;
   municipalityId: string | null;
   municipality: string;
-  categoryId: string | null;
-  categoryName: string | null;
+  categories: CategoryRef[];
   contactPhone: string | null;
   active: boolean;
   productCount: number;
@@ -139,7 +143,8 @@ export interface BusinessInput {
   logoUrl: string | null;
   /** La provincia y el nombre del municipio se derivan de este id en la base de datos. */
   municipalityId: string;
-  categoryId: string | null;
+  /** Un negocio puede ofrecer varios servicios (dulcería, panadería, cafetería…). */
+  categoryIds: string[];
   contactPhone: string | null;
   active: boolean;
 }

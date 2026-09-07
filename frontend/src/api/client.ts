@@ -31,8 +31,8 @@ interface BusinessRow {
   province_name: string | null;
   municipality_id: string | null;
   municipality: string;
-  category_id: string | null;
-  category_name: string | null;
+  category_ids: string[] | null;
+  category_names: string[] | null;
   contact_phone: string | null;
   active: boolean;
 }
@@ -56,8 +56,10 @@ const toBusiness = (row: BusinessRow, productCount: number): Business => ({
   provinceName: row.province_name ?? row.province,
   municipalityId: row.municipality_id,
   municipality: row.municipality,
-  categoryId: row.category_id,
-  categoryName: row.category_name,
+  categories: (row.category_ids ?? []).map((id, index) => ({
+    id,
+    name: row.category_names?.[index] ?? '',
+  })),
   contactPhone: row.contact_phone,
   active: row.active,
   productCount,
@@ -138,17 +140,25 @@ const toRow = (input: ProductInput) => ({
   available: input.available,
 });
 
-// province y municipality los rellena el trigger businesses_sync_municipality
-// a partir de municipality_id, así que no se envían desde el cliente.
-const toBusinessRow = (input: BusinessInput) => ({
-  name: input.name,
-  description: input.description,
-  logo_url: input.logoUrl,
-  municipality_id: input.municipalityId,
-  category_id: input.categoryId,
-  contact_phone: input.contactPhone,
-  active: input.active,
-});
+/**
+ * save_business() guarda el negocio y sus categorías en una sola transacción;
+ * province y municipality los deriva el trigger de municipality_id.
+ */
+const saveBusiness = async (id: string | null, input: BusinessInput): Promise<void> => {
+  const { error } = await supabase.rpc('save_business', {
+    p_id: id,
+    p_payload: {
+      name: input.name,
+      description: input.description,
+      logoUrl: input.logoUrl,
+      municipalityId: input.municipalityId,
+      contactPhone: input.contactPhone,
+      active: input.active,
+    },
+    p_category_ids: input.categoryIds,
+  });
+  if (error) fail(error);
+};
 
 interface ProvinceRow {
   code: string;
@@ -278,7 +288,7 @@ export const api = {
     let query = supabase
       .from('business_catalog')
       .select(
-        'id, name, description, logo_url, province, province_name, municipality_id, municipality, category_id, category_name, contact_phone, active, product_count',
+        'id, name, description, logo_url, province, province_name, municipality_id, municipality, category_ids, category_names, contact_phone, active, product_count',
       )
       .eq('active', true)
       .order('name');
@@ -288,7 +298,7 @@ export const api = {
     }
 
     if (categoryId) {
-      query = query.eq('category_id', categoryId);
+      query = query.contains('category_ids', [categoryId]);
     }
 
     const { data, error } = await query;
@@ -300,7 +310,7 @@ export const api = {
   async getBusiness(id: string): Promise<BusinessDetail> {
     const { data, error } = await supabase
       .from('business_catalog')
-      .select('id, name, description, logo_url, province, province_name, municipality_id, municipality, category_id, category_name, contact_phone, active, product_count')
+      .select('id, name, description, logo_url, province, province_name, municipality_id, municipality, category_ids, category_names, contact_phone, active, product_count')
       .eq('id', id)
       .maybeSingle();
 
@@ -370,7 +380,7 @@ export const api = {
     async listBusinesses(): Promise<Business[]> {
       const { data, error } = await supabase
         .from('business_catalog')
-        .select('id, name, description, logo_url, province, province_name, municipality_id, municipality, category_id, category_name, contact_phone, active, product_count')
+        .select('id, name, description, logo_url, province, province_name, municipality_id, municipality, category_ids, category_names, contact_phone, active, product_count')
         .order('name');
 
       if (error) fail(error);
@@ -452,13 +462,11 @@ export const api = {
     },
 
     async createBusiness(input: BusinessInput): Promise<void> {
-      const { error } = await supabase.from('businesses').insert(toBusinessRow(input));
-      if (error) fail(error);
+      await saveBusiness(null, input);
     },
 
     async updateBusiness(id: string, input: BusinessInput): Promise<void> {
-      const { error } = await supabase.from('businesses').update(toBusinessRow(input)).eq('id', id);
-      if (error) fail(error);
+      await saveBusiness(id, input);
     },
 
     /** Si el negocio tiene pedidos, la FK impide borrarlo y se desactiva en su lugar. */

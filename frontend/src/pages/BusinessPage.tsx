@@ -76,8 +76,12 @@ export function BusinessPage() {
         <div>
           <h1 className="page-title">{business.name}</h1>
           <p className="page-subtitle">
-            <span className="tag">{business.provinceName}</span>{' '}
-            {business.categoryName && <span className="tag">{business.categoryName}</span>}{' '}
+            <span className="tag">{business.provinceName}</span>
+            {business.categories.map((c) => (
+              <span key={c.id} className="tag">
+                {c.name}
+              </span>
+            ))}{' '}
             {business.municipality}
             {business.description ? ` — ${business.description}` : ''}
           </p>
