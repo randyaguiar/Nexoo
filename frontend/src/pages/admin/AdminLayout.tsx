@@ -1,25 +1,12 @@
-import { useEffect, useState } from 'react';
 import { Link, NavLink, Navigate, Outlet, useNavigate } from 'react-router-dom';
 import { api } from '../../api/client';
-import type { AdminUser } from '../../api/types';
 import { useAuth } from '../../auth/AuthContext';
 
 export function AdminLayout() {
   const navigate = useNavigate();
-  const { user, loading } = useAuth();
-  // undefined mientras se resuelve; null = la sesión no pertenece a un admin.
-  const [admin, setAdmin] = useState<AdminUser | null | undefined>(undefined);
+  const { user, admin, adminError, loading } = useAuth();
 
-  useEffect(() => {
-    if (!user) {
-      setAdmin(null);
-      return;
-    }
-    setAdmin(undefined);
-    void api.admin.currentAdmin().then(setAdmin);
-  }, [user]);
-
-  if (loading || (user && admin === undefined)) {
+  if (loading) {
     return <p className="empty">Cargando…</p>;
   }
 
@@ -38,7 +25,16 @@ export function AdminLayout() {
     return (
       <div className="empty-state">
         <h3>Esta cuenta no tiene acceso al panel</h3>
-        <p>Entra con un usuario administrador o vuelve al catálogo.</p>
+        {adminError ? (
+          <p className="alert error" role="alert">
+            {adminError}
+          </p>
+        ) : (
+          <p>
+            La sesión de <strong>{user.email}</strong> no tiene una fila en <code>admins</code>.
+            Entra con un usuario administrador o vuelve al catálogo.
+          </p>
+        )}
         <button type="button" className="secondary" onClick={() => void logout()}>
           Cerrar sesión
         </button>{' '}
