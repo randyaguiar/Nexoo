@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../../api/client';
 import {
   BoxIcon,
@@ -15,6 +15,7 @@ import {
   TagIcon,
   TextIcon,
   TrashIcon,
+  UploadIcon,
 } from '../../components/Icon';
 import { MultiSelect } from '../../components/MultiSelect';
 import type {
@@ -44,6 +45,8 @@ export function AdminBusinessesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -78,6 +81,21 @@ export function AdminBusinessesPage() {
 
   const set = <K extends keyof BusinessInput>(key: K, value: BusinessInput[K]) =>
     setForm((current) => ({ ...current, [key]: value }));
+
+  const uploadLogo = async (file: File | undefined) => {
+    if (!file) return;
+    setUploadingLogo(true);
+    try {
+      set('logoUrl', await api.admin.uploadBusinessLogo(file));
+      setError(null);
+    } catch (e) {
+      setError(`No se pudo subir el logo: ${(e as Error).message}`);
+    } finally {
+      setUploadingLogo(false);
+      // Permite volver a elegir el mismo archivo tras un fallo.
+      if (logoInputRef.current) logoInputRef.current.value = '';
+    }
+  };
 
   const reset = () => {
     setForm(emptyForm);
@@ -150,33 +168,27 @@ export function AdminBusinessesPage() {
             <label htmlFor="name" className="label-icon">
               <StoreIcon /> Nombre
             </label>
-            <span className="input-icon">
-              <StoreIcon />
-              <input
-                id="name"
-                required
-                maxLength={160}
-                placeholder="Nombre del negocio"
-                value={form.name}
-                onChange={(e) => set('name', e.target.value)}
-              />
-            </span>
+            <input
+              id="name"
+              required
+              maxLength={160}
+              placeholder="Nombre del negocio"
+              value={form.name}
+              onChange={(e) => set('name', e.target.value)}
+            />
           </div>
           <div className="field">
             <label htmlFor="contactPhone" className="label-icon">
               <PhoneIcon /> Teléfono de contacto
             </label>
-            <span className="input-icon">
-              <PhoneIcon />
-              <input
-                id="contactPhone"
-                type="tel"
-                maxLength={40}
-                placeholder="+53 5 000 0000"
-                value={form.contactPhone ?? ''}
-                onChange={(e) => set('contactPhone', e.target.value)}
-              />
-            </span>
+            <input
+              id="contactPhone"
+              type="tel"
+              maxLength={40}
+              placeholder="+53 5 000 0000"
+              value={form.contactPhone ?? ''}
+              onChange={(e) => set('contactPhone', e.target.value)}
+            />
           </div>
         </div>
         <div className="field-row">
@@ -184,44 +196,38 @@ export function AdminBusinessesPage() {
             <label htmlFor="province" className="label-icon">
               <MapIcon /> Provincia
             </label>
-            <span className="input-icon">
-              <MapIcon />
-              <select
-                id="province"
-                value={provinceCode}
-                onChange={(e) => {
-                  const first = municipalities.find((m) => m.provinceCode === e.target.value);
-                  set('municipalityId', first?.id ?? '');
-                }}
-              >
-                {provinces.map((p) => (
-                  <option key={p.code} value={p.code}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-            </span>
+            <select
+              id="province"
+              value={provinceCode}
+              onChange={(e) => {
+                const first = municipalities.find((m) => m.provinceCode === e.target.value);
+                set('municipalityId', first?.id ?? '');
+              }}
+            >
+              {provinces.map((p) => (
+                <option key={p.code} value={p.code}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="field">
             <label htmlFor="municipalityId" className="label-icon">
               <MapPinIcon /> Municipio
             </label>
-            <span className="input-icon">
-              <MapPinIcon />
-              <select
-                id="municipalityId"
-                required
-                value={form.municipalityId}
-                onChange={(e) => set('municipalityId', e.target.value)}
-              >
-                <option value="">Selecciona un municipio</option>
-                {provinceMunicipalities.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name}
-                  </option>
-                ))}
-              </select>
-            </span>
+            <select
+              id="municipalityId"
+              required
+              value={form.municipalityId}
+              onChange={(e) => set('municipalityId', e.target.value)}
+            >
+              <option value="">Selecciona un municipio</option>
+              {provinceMunicipalities.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
         <div className="field">
@@ -239,32 +245,39 @@ export function AdminBusinessesPage() {
             Un negocio puede ofrecer varios servicios (dulcería, panadería, cafetería…).
           </p>
         </div>
-        <div className="field-row">
-          <div className="field">
-            <label htmlFor="logoUrl" className="label-icon">
-              <ImageIcon /> URL del logo
-            </label>
-            <span className="input-icon">
-              <ImageIcon />
+        <div className="field">
+          <span className="field-label label-icon">
+            <ImageIcon /> Logo
+          </span>
+          <div className="logo-upload">
+            {form.logoUrl?.trim() ? (
+              <img className="business-logo" src={form.logoUrl} alt="Vista previa del logo" />
+            ) : (
+              <span className="logo-upload-placeholder" aria-hidden="true">
+                <ImageIcon size={22} />
+              </span>
+            )}
+            <div className="logo-upload-actions">
               <input
-                id="logoUrl"
-                type="url"
-                maxLength={1000}
-                placeholder="https://…"
-                value={form.logoUrl ?? ''}
-                onChange={(e) => set('logoUrl', e.target.value)}
+                id="logoFile"
+                ref={logoInputRef}
+                type="file"
+                className="visually-hidden"
+                accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                onChange={(e) => void uploadLogo(e.target.files?.[0])}
               />
-            </span>
+              <label htmlFor="logoFile" className="button secondary">
+                <UploadIcon /> {uploadingLogo ? 'Subiendo…' : 'Subir imagen'}
+              </label>
+              {form.logoUrl?.trim() && (
+                <button type="button" className="link" onClick={() => set('logoUrl', '')}>
+                  <TrashIcon size={14} /> Quitar
+                </button>
+              )}
+              <p className="field-hint">PNG, JPG, WEBP o SVG. Máximo 2 MB.</p>
+            </div>
           </div>
         </div>
-        {form.logoUrl?.trim() && (
-          <img
-            className="business-logo"
-            src={form.logoUrl}
-            alt="Vista previa del logo"
-            style={{ marginBottom: 12 }}
-          />
-        )}
         <div className="field">
           <label htmlFor="description" className="label-icon">
             <TextIcon /> Descripción
