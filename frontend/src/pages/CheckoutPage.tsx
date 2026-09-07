@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
-import { PROVINCES, type Province } from '../api/types';
+import type { Municipality, Province, ProvinceRef } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
 import { useCart } from '../cart/CartContext';
 import { formatUsd } from '../components/Money';
@@ -24,7 +24,7 @@ const initialForm: FormState = {
   buyerPhone: '',
   recipientName: '',
   recipientPhone: '',
-  recipientProvince: 'PinarDelRio',
+  recipientProvince: '',
   recipientMunicipality: '',
   recipientAddress: '',
   notes: '',
@@ -40,6 +40,50 @@ export function CheckoutPage() {
   }));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [provinces, setProvinces] = useState<ProvinceRef[]>([]);
+  const [municipalities, setMunicipalities] = useState<Municipality[]>([]);
+
+  useEffect(() => {
+    api
+      .listProvinces()
+      .then((data) => {
+        setProvinces(data);
+        setForm((current) =>
+          current.recipientProvince ? current : { ...current, recipientProvince: data[0]?.code ?? '' },
+        );
+      })
+      .catch((e: Error) => setError(e.message));
+  }, []);
+
+  const selectedProvince = form.recipientProvince;
+
+  useEffect(() => {
+    if (!selectedProvince) {
+      setMunicipalities([]);
+      return;
+    }
+
+    let cancelled = false;
+    api
+      .listMunicipalities(selectedProvince)
+      .then((data) => {
+        if (cancelled) return;
+        setMunicipalities(data);
+        // El municipio elegido puede no existir en la provincia recién seleccionada.
+        setForm((current) =>
+          data.some((m) => m.name === current.recipientMunicipality)
+            ? current
+            : { ...current, recipientMunicipality: data[0]?.name ?? '' },
+        );
+      })
+      .catch((e: Error) => {
+        if (!cancelled) setError(e.message);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedProvince]);
 
   if (cart.lines.length === 0) {
     return (
@@ -177,22 +221,27 @@ export function CheckoutPage() {
                   value={form.recipientProvince}
                   onChange={(e) => set('recipientProvince', e.target.value as Province)}
                 >
-                  {PROVINCES.map((p) => (
-                    <option key={p.value} value={p.value}>
-                      {p.label}
+                  {provinces.map((p) => (
+                    <option key={p.code} value={p.code}>
+                      {p.name}
                     </option>
                   ))}
                 </select>
               </div>
               <div className="field">
                 <label htmlFor="recipientMunicipality">Municipio</label>
-                <input
+                <select
                   id="recipientMunicipality"
                   required
-                  maxLength={120}
                   value={form.recipientMunicipality}
                   onChange={(e) => set('recipientMunicipality', e.target.value)}
-                />
+                >
+                  {municipalities.map((m) => (
+                    <option key={m.id} value={m.name}>
+                      {m.name}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
             <div className="field">

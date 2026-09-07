@@ -381,6 +381,38 @@ main {
   margin: 0;
 }
 
+.business-card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.business-heading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.business-logo {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  object-fit: cover;
+  background: var(--nexoo-primary-soft);
+  border: 1px solid var(--nexoo-border);
+  flex-shrink: 0;
+}
+
+.business-logo.small {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+}
+
+.tag + .tag {
+  margin-left: 6px;
+}
+
 .card-footer {
   margin-top: auto;
   padding-top: var(--space-3);

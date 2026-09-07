@@ -66,6 +66,12 @@ export function AdminLayout() {
         <NavLink to="/admin/productos" className={linkClass}>
           Productos
         </NavLink>
+        <NavLink to="/admin/categorias" className={linkClass}>
+          Categorías
+        </NavLink>
+        <NavLink to="/admin/lugares" className={linkClass}>
+          Provincias y municipios
+        </NavLink>
         {admin.role === 'owner' && (
           <NavLink to="/admin/usuarios" className={linkClass}>
             Usuarios

@@ -11,9 +11,11 @@ import { MyOrdersPage } from './pages/MyOrdersPage';
 import { OrderConfirmationPage } from './pages/OrderConfirmationPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { AdminBusinessesPage } from './pages/admin/AdminBusinessesPage';
+import { AdminCategoriesPage } from './pages/admin/AdminCategoriesPage';
 import { AdminLayout } from './pages/admin/AdminLayout';
 import { AdminLoginPage } from './pages/admin/AdminLoginPage';
 import { AdminOrdersPage } from './pages/admin/AdminOrdersPage';
+import { AdminPlacesPage } from './pages/admin/AdminPlacesPage';
 import { AdminProductsPage } from './pages/admin/AdminProductsPage';
 import { AdminUsersPage } from './pages/admin/AdminUsersPage';
 
@@ -39,6 +41,8 @@ export function App() {
             <Route path="pedidos" element={<AdminOrdersPage />} />
             <Route path="negocios" element={<AdminBusinessesPage />} />
             <Route path="productos" element={<AdminProductsPage />} />
+            <Route path="categorias" element={<AdminCategoriesPage />} />
+            <Route path="lugares" element={<AdminPlacesPage />} />
             <Route path="usuarios" element={<AdminUsersPage />} />
           </Route>
 

@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../api/client';
 import {
   ORDER_STATUSES,
-  provinceLabel,
   type Order,
   type OrderStatus,
 } from '../../api/types';
@@ -102,7 +101,7 @@ export function AdminOrdersPage() {
                     <span className="meta">
                       {order.recipientPhone}
                       <br />
-                      {provinceLabel(order.recipientProvince)}, {order.recipientMunicipality}
+                      {order.recipientProvinceName}, {order.recipientMunicipality}
                       <br />
                       {order.recipientAddress}
                     </span>

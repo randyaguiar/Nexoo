@@ -29,14 +29,21 @@ supabase/seed.sql    catálogo de prueba
 
 | Tabla         | Campos clave                                                                                             |
 | ------------- | --------------------------------------------------------------------------------------------------------- |
-| `businesses`  | name, description, province, municipality, contact_phone, active                                            |
+| `businesses`  | name, description, logo_url, province, municipality_id/municipality, category_id, contact_phone, active      |
+| `provinces`   | code (PK, p. ej. `LaHabana`), name, active                                                                  |
+| `municipalities` | province_code, name, active (único por provincia)                                                        |
+| `categories`  | name (único), description, active — tipo de servicio del negocio                                            |
 | `products`    | business_id, name, price_usd, photo_url, available                                                          |
 | `orders`      | buyer_*, recipient_* (nombre, teléfono, provincia, municipio, dirección), business_id, status, total_usd, user_id |
 | `order_items` | order_id, product_id, product_name, quantity, unit_price                                                    |
 | `admins`      | user_id (→ `auth.users`), email, role (`owner` \| `staff`)                                                   |
 
-`province` (`PinarDelRio`, `LaHabana`) y `status` (`PendingPayment`, `Paid`, `PaidToBusiness`,
-`Delivered`, `Cancelled`) son texto con `CHECK`: añadir valores no requiere migrar datos.
+Provincias, municipios y categorías se gestionan desde el panel (`/admin/lugares`,
+`/admin/categorias`). `businesses.province` y `orders.recipient_province` guardan el código de la
+provincia con FK a `provinces`; el trigger `businesses_sync_municipality` deriva `province` y
+`municipality` del `municipality_id` elegido, así que no pueden quedar desalineados y renombrar un
+municipio se propaga a sus negocios. `status` (`PendingPayment`, `Paid`, `PaidToBusiness`,
+`Delivered`, `Cancelled`) sigue siendo texto con `CHECK`.
 
 ## Reglas de negocio y por qué viven en la base de datos
 
@@ -131,10 +138,10 @@ publica solo.
 
 ## Flujo end-to-end
 
-Catálogo → filtro por provincia → negocio → carrito (un solo negocio) → checkout con datos del
+Catálogo → filtro por provincia y categoría → negocio → carrito (un solo negocio) → checkout con datos del
 comprador y del destinatario → pedido `Pendiente de pago` + instrucciones de Zelle + email al admin
 → el panel lista el pedido y cambia su estado.
 
 ## Fuera del alcance del MVP
 
-Pagos automáticos, split de comisiones, multi-idioma, SMS y provincias adicionales.
+Pagos automáticos, split de comisiones, multi-idioma y SMS.

@@ -1,15 +1,40 @@
 -- Datos de prueba del catálogo Nexoo (un negocio por provincia de lanzamiento).
 
-insert into public.businesses (id, name, description, province, municipality, contact_phone, active)
+insert into public.municipalities (province_code, name) values
+  ('PinarDelRio', 'Pinar del Río'),
+  ('PinarDelRio', 'Consolación del Sur'),
+  ('PinarDelRio', 'Viñales'),
+  ('LaHabana', 'Centro Habana'),
+  ('LaHabana', 'Habana Vieja'),
+  ('LaHabana', 'Playa'),
+  ('LaHabana', 'Plaza de la Revolución')
+on conflict (province_code, name) do nothing;
+
+insert into public.categories (id, name, description) values
+  ('cccccccc-0000-0000-0000-000000000001', 'Dulcería y repostería', 'Cakes, dulces finos y merengues.'),
+  ('cccccccc-0000-0000-0000-000000000002', 'Cafetería', 'Café, batidos y meriendas.'),
+  ('cccccccc-0000-0000-0000-000000000003', 'Alimentos y víveres', 'Productos de mercado y combos de comida.'),
+  ('cccccccc-0000-0000-0000-000000000004', 'Flores y regalos', 'Ramos, detalles y regalos a domicilio.')
+on conflict (name) do nothing;
+
+insert into public.businesses (id, name, description, logo_url, province, municipality, municipality_id, category_id, contact_phone, active)
 values
   ('11111111-1111-1111-1111-111111111111',
    'Dulcería La Vueltabajera',
    'Dulces finos, cakes y merenguitos hechos por encargo en el centro de Pinar del Río.',
-   'PinarDelRio', 'Pinar del Río', '+53 5 555 1234', true),
+   'https://images.unsplash.com/photo-1486427944299-d1955d23e34d?w=256',
+   'PinarDelRio', 'Pinar del Río',
+   (select id from public.municipalities where province_code = 'PinarDelRio' and name = 'Pinar del Río'),
+   'cccccccc-0000-0000-0000-000000000001',
+   '+53 5 555 1234', true),
   ('22222222-2222-2222-2222-222222222222',
    'Cafetería El Malecón',
    'Cafetería habanera: café, batidos y combos para llevar a domicilio.',
-   'LaHabana', 'Centro Habana', '+53 5 555 9876', true)
+   'https://images.unsplash.com/photo-1445116572660-236099ec97a0?w=256',
+   'LaHabana', 'Centro Habana',
+   (select id from public.municipalities where province_code = 'LaHabana' and name = 'Centro Habana'),
+   'cccccccc-0000-0000-0000-000000000002',
+   '+53 5 555 9876', true)
 on conflict (id) do nothing;
 
 insert into public.products (id, business_id, name, description, price_usd, photo_url, available)

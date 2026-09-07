@@ -25,11 +25,6 @@ interface WebhookPayload {
   record: OrderRecord;
 }
 
-const PROVINCE_LABELS: Record<string, string> = {
-  PinarDelRio: 'Pinar del Río',
-  LaHabana: 'La Habana',
-};
-
 const shortRef = (id: string): string => id.replaceAll('-', '').slice(0, 8).toUpperCase();
 
 Deno.serve(async (request: Request): Promise<Response> => {
@@ -47,19 +42,20 @@ Deno.serve(async (request: Request): Promise<Response> => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   );
 
-  const [{ data: items }, { data: business }] = await Promise.all([
+  const [{ data: items }, { data: business }, { data: provinceRow }] = await Promise.all([
     supabase
       .from('order_items')
       .select('product_name, quantity, unit_price')
       .eq('order_id', order.id),
     supabase.from('businesses').select('name').eq('id', order.business_id).single(),
+    supabase.from('provinces').select('name').eq('code', order.recipient_province).maybeSingle(),
   ]);
 
   const lines = (items ?? [])
     .map((i) => `  ${i.quantity} x ${i.product_name} @ ${i.unit_price} USD`)
     .join('\n');
 
-  const province = PROVINCE_LABELS[order.recipient_province] ?? order.recipient_province;
+  const province = provinceRow?.name ?? order.recipient_province;
 
   const body = [
     `Pedido: ${shortRef(order.id)} (${order.id})`,

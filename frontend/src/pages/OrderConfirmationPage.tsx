@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../api/client';
-import { provinceLabel, shortRef, type Order } from '../api/types';
+import { shortRef, type Order } from '../api/types';
 import { formatUsd } from '../components/Money';
 import { StatusBadge } from '../components/StatusBadge';
 
@@ -97,7 +97,7 @@ export function OrderConfirmationPage() {
         <p>
           {order.recipientName} · {order.recipientPhone}
           <br />
-          {provinceLabel(order.recipientProvince)}, {order.recipientMunicipality}
+          {order.recipientProvinceName}, {order.recipientMunicipality}
           <br />
           {order.recipientAddress}
         </p>
