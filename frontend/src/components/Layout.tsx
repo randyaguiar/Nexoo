@@ -6,7 +6,7 @@ import { Logo, LogoMark } from './Logo';
 
 export function Layout() {
   const { itemCount } = useCart();
-  const { user } = useAuth();
+  const { user, admin } = useAuth();
   const navigate = useNavigate();
 
   const logout = async () => {
@@ -34,6 +34,7 @@ export function Layout() {
             <Link to="/">Catálogo</Link>
             {user ? (
               <>
+                {admin && <Link to="/admin/pedidos">Panel</Link>}
                 <Link to="/mis-pedidos">Mis pedidos</Link>
                 <button type="button" className="link" onClick={() => void logout()}>
                   Salir
@@ -96,6 +97,9 @@ export function Layout() {
                   <Link to={user ? '/mis-pedidos' : '/entrar'}>
                     {user ? 'Mis pedidos' : 'Entrar / Crear cuenta'}
                   </Link>
+                </li>
+                <li>
+                  <Link to={admin ? '/admin/pedidos' : '/admin/login'}>Acceso admin</Link>
                 </li>
               </ul>
             </div>
