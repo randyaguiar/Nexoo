@@ -11,6 +11,7 @@ import { AdminLayout } from './pages/admin/AdminLayout';
 import { AdminLoginPage } from './pages/admin/AdminLoginPage';
 import { AdminOrdersPage } from './pages/admin/AdminOrdersPage';
 import { AdminProductsPage } from './pages/admin/AdminProductsPage';
+import { AdminUsersPage } from './pages/admin/AdminUsersPage';
 
 export function App() {
   return (
@@ -29,6 +30,7 @@ export function App() {
             <Route path="pedidos" element={<AdminOrdersPage />} />
             <Route path="negocios" element={<AdminBusinessesPage />} />
             <Route path="productos" element={<AdminProductsPage />} />
+            <Route path="usuarios" element={<AdminUsersPage />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

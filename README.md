@@ -21,6 +21,7 @@ supabase/seed.sql    catálogo de prueba
 | Creación de pedidos      | RPC `create_order()` (`SECURITY DEFINER`)                    |
 | Confirmación del pedido  | RPC `get_order()`, el id del pedido actúa como token         |
 | Login y panel admin      | Supabase Auth + policies contra la tabla `admins`            |
+| Gestión de usuarios      | Edge Function `manage-admins` (service role) + rol `owner`   |
 | Aviso de pedido al admin | Database Webhook → Edge Function `notify-new-order` → Resend |
 
 ## Modelo de datos
@@ -31,7 +32,7 @@ supabase/seed.sql    catálogo de prueba
 | `products`    | business_id, name, price_usd, photo_url, available                                                          |
 | `orders`      | buyer_*, recipient_* (nombre, teléfono, provincia, municipio, dirección), business_id, status, total_usd     |
 | `order_items` | order_id, product_id, product_name, quantity, unit_price                                                    |
-| `admins`      | user_id (→ `auth.users`), email                                                                             |
+| `admins`      | user_id (→ `auth.users`), email, role (`owner` \| `staff`)                                                   |
 
 `province` (`PinarDelRio`, `LaHabana`) y `status` (`PendingPayment`, `Paid`, `PaidToBusiness`,
 `Delivered`, `Cancelled`) son texto con `CHECK`: añadir valores no requiere migrar datos.
@@ -46,6 +47,12 @@ rol `anon`. El checkout llama a `create_order(payload jsonb)`, que:
 - rechaza pedidos que mezclen negocios, porque cada negocio se paga por separado;
 - suma las líneas repetidas del mismo producto y valida cantidades entre 1 y 100;
 - rechaza productos no disponibles o de negocios desactivados.
+
+Los usuarios del panel se gestionan desde *Admin → Usuarios*, visible solo para el rol `owner`.
+Crear o borrar cuentas exige la service role, que no puede viajar al navegador, así que la UI llama
+a la Edge Function `manage-admins`, que comprueba en cada petición que quien llama es `owner`.
+Quitar el acceso borra la fila de `admins` y conserva el usuario de `auth.users`; siempre debe
+quedar al menos un `owner` y nadie puede degradarse ni eliminarse a sí mismo.
 
 Negocios y productos con pedidos asociados no se pueden borrar (lo impide la clave foránea): el
 panel los desactiva en su lugar.
@@ -75,6 +82,12 @@ select id, email from auth.users where email = 'admin@nexoo.app';
 ```
 
 Sin esa fila el usuario puede iniciar sesión pero no ve ningún pedido: `is_admin()` devuelve falso.
+Ese primer usuario queda como `owner`; los siguientes se crean desde *Admin → Usuarios* (requiere
+desplegar `manage-admins`):
+
+```bash
+supabase functions deploy manage-admins
+```
 
 ### 3. Aviso por email (opcional)
 
