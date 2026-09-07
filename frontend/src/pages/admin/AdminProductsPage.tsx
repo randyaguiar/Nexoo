@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../api/client';
 import type { Business, Product, ProductInput } from '../../api/types';
+import {
+  BoxIcon,
+  CheckIcon,
+  CloseIcon,
+  PencilIcon,
+  PlusIcon,
+  TrashIcon,
+} from '../../components/Icon';
+import { Modal } from '../../components/Modal';
 import { formatUsd } from '../../components/Money';
 
 const emptyForm = (businessId: string): ProductInput => ({
@@ -18,6 +27,7 @@ export function AdminProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [form, setForm] = useState<ProductInput>(emptyForm(''));
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -49,14 +59,22 @@ export function AdminProductsPage() {
     void loadProducts(selectedBusinessId);
     setForm(emptyForm(selectedBusinessId));
     setEditingId(null);
+    setFormOpen(false);
   }, [loadProducts, selectedBusinessId]);
 
   const set = <K extends keyof ProductInput>(key: K, value: ProductInput[K]) =>
     setForm((current) => ({ ...current, [key]: value }));
 
-  const reset = () => {
+  const closeForm = () => {
     setForm(emptyForm(selectedBusinessId));
     setEditingId(null);
+    setFormOpen(false);
+  };
+
+  const openCreate = () => {
+    setForm(emptyForm(selectedBusinessId));
+    setEditingId(null);
+    setFormOpen(true);
   };
 
   const submit = async (event: React.FormEvent) => {
@@ -73,7 +91,7 @@ export function AdminProductsPage() {
       } else {
         await api.admin.createProduct(payload);
       }
-      reset();
+      closeForm();
       await loadProducts(selectedBusinessId);
     } catch (e) {
       setError((e as Error).message);
@@ -82,6 +100,7 @@ export function AdminProductsPage() {
 
   const edit = (product: Product) => {
     setEditingId(product.id);
+    setFormOpen(true);
     setForm({
       businessId: product.businessId,
       name: product.name,
@@ -98,7 +117,7 @@ export function AdminProductsPage() {
     }
     try {
       await api.admin.deleteProduct(product.id);
-      if (editingId === product.id) reset();
+      if (editingId === product.id) closeForm();
       await loadProducts(selectedBusinessId);
     } catch (e) {
       setError((e as Error).message);
@@ -118,88 +137,25 @@ export function AdminProductsPage() {
     <>
       {error && <div className="alert error">{error}</div>}
 
-      <div className="field" style={{ maxWidth: 360 }}>
-        <label htmlFor="businessFilter">Negocio</label>
-        <select
-          id="businessFilter"
-          value={selectedBusinessId}
-          onChange={(e) => setSelectedBusinessId(e.target.value)}
-        >
-          {businesses.map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.name}
-            </option>
-          ))}
-        </select>
+      <div className="page-toolbar">
+        <div className="field" style={{ maxWidth: 360, marginBottom: 0 }}>
+          <label htmlFor="businessFilter">Negocio</label>
+          <select
+            id="businessFilter"
+            value={selectedBusinessId}
+            onChange={(e) => setSelectedBusinessId(e.target.value)}
+          >
+            {businesses.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <button type="button" onClick={openCreate}>
+          <PlusIcon /> Nuevo producto
+        </button>
       </div>
-
-      <form className="card" style={{ marginBottom: 24 }} onSubmit={submit}>
-        <h3>{editingId ? 'Editar producto' : 'Nuevo producto'}</h3>
-        <div className="field-row">
-          <div className="field">
-            <label htmlFor="productName">Nombre</label>
-            <input
-              id="productName"
-              required
-              maxLength={160}
-              value={form.name}
-              onChange={(e) => set('name', e.target.value)}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="priceUsd">Precio (USD)</label>
-            <input
-              id="priceUsd"
-              type="number"
-              required
-              min={0.01}
-              step={0.01}
-              value={form.priceUsd}
-              onChange={(e) => set('priceUsd', Number(e.target.value))}
-            />
-          </div>
-        </div>
-        <div className="field">
-          <label htmlFor="photoUrl">URL de la foto</label>
-          <input
-            id="photoUrl"
-            type="url"
-            maxLength={1000}
-            value={form.photoUrl ?? ''}
-            onChange={(e) => set('photoUrl', e.target.value)}
-          />
-        </div>
-        <div className="field">
-          <label htmlFor="productDescription">Descripción</label>
-          <textarea
-            id="productDescription"
-            rows={2}
-            maxLength={2000}
-            value={form.description ?? ''}
-            onChange={(e) => set('description', e.target.value)}
-          />
-        </div>
-        <div className="field">
-          <label htmlFor="available">
-            <input
-              id="available"
-              type="checkbox"
-              style={{ width: 'auto', marginRight: 8 }}
-              checked={form.available}
-              onChange={(e) => set('available', e.target.checked)}
-            />
-            Disponible para la venta
-          </label>
-        </div>
-        <div className="filters" style={{ margin: 0 }}>
-          <button type="submit">{editingId ? 'Guardar cambios' : 'Crear producto'}</button>
-          {editingId && (
-            <button type="button" className="secondary" onClick={reset}>
-              Cancelar
-            </button>
-          )}
-        </div>
-      </form>
 
       {products.length === 0 ? (
         <p className="empty">Este negocio aún no tiene productos.</p>
@@ -218,24 +174,120 @@ export function AdminProductsPage() {
               {products.map((product) => (
                 <tr key={product.id}>
                   <td>
-                    {product.name}
+                    <span className="cell-icon">
+                      <BoxIcon size={14} />
+                      {product.name}
+                    </span>
                     {product.description && <div className="meta">{product.description}</div>}
                   </td>
                   <td>{formatUsd(product.priceUsd)}</td>
                   <td>{product.available ? 'Sí' : 'No'}</td>
                   <td>
-                    <button type="button" className="link" onClick={() => edit(product)}>
-                      Editar
-                    </button>{' '}
-                    <button type="button" className="link" onClick={() => void remove(product)}>
-                      Eliminar
-                    </button>
+                    <span className="row-actions">
+                      <button
+                        type="button"
+                        className="icon-button"
+                        title="Editar producto"
+                        aria-label={`Editar ${product.name}`}
+                        onClick={() => edit(product)}
+                      >
+                        <PencilIcon size={15} />
+                      </button>
+                      <button
+                        type="button"
+                        className="icon-button danger"
+                        title="Eliminar producto"
+                        aria-label={`Eliminar ${product.name}`}
+                        onClick={() => void remove(product)}
+                      >
+                        <TrashIcon size={15} />
+                      </button>
+                    </span>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+      )}
+
+      {formOpen && (
+        <Modal
+          title={
+            <>
+              {editingId ? <PencilIcon size={18} /> : <PlusIcon size={18} />}
+              {editingId ? 'Editar producto' : 'Nuevo producto'}
+            </>
+          }
+          onClose={closeForm}
+        >
+          <form onSubmit={submit}>
+            <div className="field-row">
+              <div className="field">
+                <label htmlFor="productName">Nombre</label>
+                <input
+                  id="productName"
+                  required
+                  maxLength={160}
+                  value={form.name}
+                  onChange={(e) => set('name', e.target.value)}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="priceUsd">Precio (USD)</label>
+                <input
+                  id="priceUsd"
+                  type="number"
+                  required
+                  min={0.01}
+                  step={0.01}
+                  value={form.priceUsd}
+                  onChange={(e) => set('priceUsd', Number(e.target.value))}
+                />
+              </div>
+            </div>
+            <div className="field">
+              <label htmlFor="photoUrl">URL de la foto</label>
+              <input
+                id="photoUrl"
+                type="url"
+                maxLength={1000}
+                value={form.photoUrl ?? ''}
+                onChange={(e) => set('photoUrl', e.target.value)}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="productDescription">Descripción</label>
+              <textarea
+                id="productDescription"
+                rows={2}
+                maxLength={2000}
+                value={form.description ?? ''}
+                onChange={(e) => set('description', e.target.value)}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="available" className="checkbox">
+                <input
+                  id="available"
+                  type="checkbox"
+                  checked={form.available}
+                  onChange={(e) => set('available', e.target.checked)}
+                />
+                Disponible para la venta
+              </label>
+            </div>
+            <div className="modal-footer">
+              <button type="button" className="secondary" onClick={closeForm}>
+                <CloseIcon /> Cancelar
+              </button>
+              <button type="submit">
+                {editingId ? <CheckIcon /> : <PlusIcon />}
+                {editingId ? 'Guardar cambios' : 'Crear producto'}
+              </button>
+            </div>
+          </form>
+        </Modal>
       )}
     </>
   );

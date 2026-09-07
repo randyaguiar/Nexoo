@@ -46,10 +46,10 @@
 
   color-scheme: light;
   font-family:
-    "Inter",
+    'Inter',
     system-ui,
     -apple-system,
-    "Segoe UI",
+    'Segoe UI',
     sans-serif;
   color: var(--nexoo-ink);
   -webkit-font-smoothing: antialiased;
@@ -279,11 +279,7 @@ main {
 .hero {
   position: relative;
   overflow: hidden;
-  background: linear-gradient(
-    135deg,
-    var(--nexoo-primary) 0%,
-    var(--nexoo-primary-dark) 100%
-  );
+  background: linear-gradient(135deg, var(--nexoo-primary) 0%, var(--nexoo-primary-dark) 100%);
   color: #fff;
   border-radius: var(--nexoo-radius-lg);
   padding: var(--space-6);
@@ -292,7 +288,7 @@ main {
 }
 
 .hero::after {
-  content: "";
+  content: '';
   position: absolute;
   right: -80px;
   top: -80px;
@@ -916,13 +912,13 @@ th {
 }
 
 .steps li::after {
-  content: "›";
+  content: '›';
   margin-left: var(--space-2);
   color: var(--nexoo-border-strong);
 }
 
 .steps li:last-child::after {
-  content: "";
+  content: '';
 }
 
 .steps li.current {
