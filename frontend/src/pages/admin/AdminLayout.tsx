@@ -1,6 +1,22 @@
 import { Link, NavLink, Navigate, Outlet, useNavigate } from 'react-router-dom';
 import { api } from '../../api/client';
 import { useAuth } from '../../auth/AuthContext';
+import {
+  BoxIcon,
+  MapPinIcon,
+  ReceiptIcon,
+  StoreIcon,
+  TagIcon,
+  UsersIcon,
+} from '../../components/Icon';
+
+const NAV_ITEMS = [
+  { to: '/admin/pedidos', label: 'Pedidos', Icon: ReceiptIcon },
+  { to: '/admin/negocios', label: 'Negocios', Icon: StoreIcon },
+  { to: '/admin/productos', label: 'Productos', Icon: BoxIcon },
+  { to: '/admin/categorias', label: 'Categorías', Icon: TagIcon },
+  { to: '/admin/lugares', label: 'Provincias y municipios', Icon: MapPinIcon },
+] as const;
 
 export function AdminLayout() {
   const navigate = useNavigate();
@@ -45,36 +61,34 @@ export function AdminLayout() {
     );
   }
 
-  const linkClass = ({ isActive }: { isActive: boolean }) => (isActive ? 'active' : '');
+  const linkClass = ({ isActive }: { isActive: boolean }) =>
+    isActive ? 'admin-nav-link active' : 'admin-nav-link';
 
   return (
     <>
       <div className="admin-header">
-        <h1 className="page-title">Panel Nexoo</h1>
-        <button type="button" className="secondary" onClick={() => void logout()}>
-          Cerrar sesión
-        </button>
+        <div>
+          <h1 className="page-title">Panel Nexoo</h1>
+          <p className="admin-header-meta">
+            <span className={`admin-role-badge ${admin.role}`}>
+              {admin.role === 'owner' ? 'Propietario' : 'Administrador'}
+            </span>
+            <span>{user.email}</span>
+          </p>
+        </div>
       </div>
 
-      <nav className="admin-nav">
-        <NavLink to="/admin/pedidos" className={linkClass}>
-          Pedidos
-        </NavLink>
-        <NavLink to="/admin/negocios" className={linkClass}>
-          Negocios
-        </NavLink>
-        <NavLink to="/admin/productos" className={linkClass}>
-          Productos
-        </NavLink>
-        <NavLink to="/admin/categorias" className={linkClass}>
-          Categorías
-        </NavLink>
-        <NavLink to="/admin/lugares" className={linkClass}>
-          Provincias y municipios
-        </NavLink>
+      <nav className="admin-nav" aria-label="Secciones del panel">
+        {NAV_ITEMS.map(({ to, label, Icon }) => (
+          <NavLink key={to} to={to} className={linkClass}>
+            <Icon size={17} />
+            <span>{label}</span>
+          </NavLink>
+        ))}
         {admin.role === 'owner' && (
           <NavLink to="/admin/usuarios" className={linkClass}>
-            Usuarios
+            <UsersIcon size={17} />
+            <span>Usuarios</span>
           </NavLink>
         )}
       </nav>
