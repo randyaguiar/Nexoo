@@ -1,5 +1,22 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../api/client';
+import {
+  BoxIcon,
+  CheckIcon,
+  CloseIcon,
+  EyeIcon,
+  ImageIcon,
+  MapIcon,
+  MapPinIcon,
+  PencilIcon,
+  PhoneIcon,
+  PlusIcon,
+  StoreIcon,
+  TagIcon,
+  TextIcon,
+  TrashIcon,
+} from '../../components/Icon';
+import { MultiSelect } from '../../components/MultiSelect';
 import type {
   Business,
   BusinessInput,
@@ -124,99 +141,120 @@ export function AdminBusinessesPage() {
       {error && <div className="alert error">{error}</div>}
 
       <form className="card" style={{ marginBottom: 24 }} onSubmit={submit}>
-        <h3>{editingId ? 'Editar negocio' : 'Nuevo negocio'}</h3>
+        <h3 className="form-title">
+          {editingId ? <PencilIcon size={18} /> : <PlusIcon size={18} />}
+          {editingId ? 'Editar negocio' : 'Nuevo negocio'}
+        </h3>
         <div className="field-row">
           <div className="field">
-            <label htmlFor="name">Nombre</label>
-            <input
-              id="name"
-              required
-              maxLength={160}
-              value={form.name}
-              onChange={(e) => set('name', e.target.value)}
-            />
+            <label htmlFor="name" className="label-icon">
+              <StoreIcon /> Nombre
+            </label>
+            <span className="input-icon">
+              <StoreIcon />
+              <input
+                id="name"
+                required
+                maxLength={160}
+                placeholder="Nombre del negocio"
+                value={form.name}
+                onChange={(e) => set('name', e.target.value)}
+              />
+            </span>
           </div>
           <div className="field">
-            <label htmlFor="contactPhone">Teléfono de contacto</label>
-            <input
-              id="contactPhone"
-              maxLength={40}
-              value={form.contactPhone ?? ''}
-              onChange={(e) => set('contactPhone', e.target.value)}
-            />
+            <label htmlFor="contactPhone" className="label-icon">
+              <PhoneIcon /> Teléfono de contacto
+            </label>
+            <span className="input-icon">
+              <PhoneIcon />
+              <input
+                id="contactPhone"
+                type="tel"
+                maxLength={40}
+                placeholder="+53 5 000 0000"
+                value={form.contactPhone ?? ''}
+                onChange={(e) => set('contactPhone', e.target.value)}
+              />
+            </span>
           </div>
         </div>
         <div className="field-row">
           <div className="field">
-            <label htmlFor="province">Provincia</label>
-            <select
-              id="province"
-              value={provinceCode}
-              onChange={(e) => {
-                const first = municipalities.find((m) => m.provinceCode === e.target.value);
-                set('municipalityId', first?.id ?? '');
-              }}
-            >
-              {provinces.map((p) => (
-                <option key={p.code} value={p.code}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
+            <label htmlFor="province" className="label-icon">
+              <MapIcon /> Provincia
+            </label>
+            <span className="input-icon">
+              <MapIcon />
+              <select
+                id="province"
+                value={provinceCode}
+                onChange={(e) => {
+                  const first = municipalities.find((m) => m.provinceCode === e.target.value);
+                  set('municipalityId', first?.id ?? '');
+                }}
+              >
+                {provinces.map((p) => (
+                  <option key={p.code} value={p.code}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </span>
           </div>
           <div className="field">
-            <label htmlFor="municipalityId">Municipio</label>
-            <select
-              id="municipalityId"
-              required
-              value={form.municipalityId}
-              onChange={(e) => set('municipalityId', e.target.value)}
-            >
-              <option value="">Selecciona un municipio</option>
-              {provinceMunicipalities.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
-            </select>
+            <label htmlFor="municipalityId" className="label-icon">
+              <MapPinIcon /> Municipio
+            </label>
+            <span className="input-icon">
+              <MapPinIcon />
+              <select
+                id="municipalityId"
+                required
+                value={form.municipalityId}
+                onChange={(e) => set('municipalityId', e.target.value)}
+              >
+                <option value="">Selecciona un municipio</option>
+                {provinceMunicipalities.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                  </option>
+                ))}
+              </select>
+            </span>
           </div>
         </div>
         <div className="field">
-          <span className="field-label">Categorías</span>
-          <div className="checkbox-grid">
-            {categories.map((c) => (
-              <label key={c.id} className="checkbox">
-                <input
-                  type="checkbox"
-                  checked={form.categoryIds.includes(c.id)}
-                  onChange={(e) =>
-                    set(
-                      'categoryIds',
-                      e.target.checked
-                        ? [...form.categoryIds, c.id]
-                        : form.categoryIds.filter((id) => id !== c.id),
-                    )
-                  }
-                />
-                {c.name}
-              </label>
-            ))}
-          </div>
+          <span className="field-label label-icon">
+            <TagIcon /> Categorías
+          </span>
+          <MultiSelect
+            label="Categorías"
+            placeholder="Selecciona una o varias categorías"
+            options={categories}
+            value={form.categoryIds}
+            onChange={(categoryIds) => set('categoryIds', categoryIds)}
+          />
           <p className="field-hint">
             Un negocio puede ofrecer varios servicios (dulcería, panadería, cafetería…).
           </p>
         </div>
         <div className="field-row">
           <div className="field">
-            <label htmlFor="logoUrl">URL del logo</label>
-            <input
-              id="logoUrl"
-              type="url"
-              maxLength={1000}
-              placeholder="https://…"
-              value={form.logoUrl ?? ''}
-              onChange={(e) => set('logoUrl', e.target.value)}
-            />
+            <label htmlFor="logoUrl" className="label-icon">
+              <ImageIcon /> URL del logo
+            </label>
+            <span className="input-icon">
+              <ImageIcon />
+              <input
+                id="logoUrl"
+                type="url"
+                maxLength={1000}
+                placeholder="https://…"
+                value={form.logoUrl ?? ''}
+                onChange={(e) => set('logoUrl', e.target.value)}
+              />
+            </span>
           </div>
         </div>
         {form.logoUrl?.trim() && (
@@ -228,7 +266,9 @@ export function AdminBusinessesPage() {
           />
         )}
         <div className="field">
-          <label htmlFor="description">Descripción</label>
+          <label htmlFor="description" className="label-icon">
+            <TextIcon /> Descripción
+          </label>
           <textarea
             id="description"
             rows={2}
@@ -238,22 +278,24 @@ export function AdminBusinessesPage() {
           />
         </div>
         <div className="field">
-          <label htmlFor="active">
+          <label htmlFor="active" className="checkbox">
             <input
               id="active"
               type="checkbox"
-              style={{ width: 'auto', marginRight: 8 }}
               checked={form.active}
               onChange={(e) => set('active', e.target.checked)}
             />
-            Visible en el catálogo
+            <EyeIcon /> Visible en el catálogo
           </label>
         </div>
         <div className="filters" style={{ margin: 0 }}>
-          <button type="submit">{editingId ? 'Guardar cambios' : 'Crear negocio'}</button>
+          <button type="submit">
+            {editingId ? <CheckIcon /> : <PlusIcon />}
+            {editingId ? 'Guardar cambios' : 'Crear negocio'}
+          </button>
           {editingId && (
             <button type="button" className="secondary" onClick={reset}>
-              Cancelar
+              <CloseIcon /> Cancelar
             </button>
           )}
         </div>
@@ -269,7 +311,7 @@ export function AdminBusinessesPage() {
               <tr>
                 <th>Logo</th>
                 <th>Nombre</th>
-                <th>Categoría</th>
+                <th>Categorías</th>
                 <th>Ubicación</th>
                 <th>Teléfono</th>
                 <th>Productos</th>
@@ -293,23 +335,55 @@ export function AdminBusinessesPage() {
                   </td>
                   <td>{business.name}</td>
                   <td>
-                    {business.categories.length > 0
-                      ? business.categories.map((c) => c.name).join(', ')
-                      : '—'}
+                    {business.categories.length > 0 ? (
+                      <span className="tag-list">
+                        {business.categories.map((c) => (
+                          <span key={c.id} className="tag">
+                            {c.name}
+                          </span>
+                        ))}
+                      </span>
+                    ) : (
+                      '—'
+                    )}
                   </td>
                   <td>
-                    {business.provinceName}, {business.municipality}
+                    <span className="cell-icon">
+                      <MapPinIcon size={14} />
+                      {business.provinceName}, {business.municipality}
+                    </span>
                   </td>
-                  <td>{business.contactPhone ?? '—'}</td>
-                  <td>{business.productCount}</td>
-                  <td>{business.active ? 'Sí' : 'No'}</td>
                   <td>
-                    <button type="button" className="link" onClick={() => edit(business)}>
-                      Editar
-                    </button>{' '}
-                    <button type="button" className="link" onClick={() => void remove(business)}>
-                      Eliminar
-                    </button>
+                    {business.contactPhone ? (
+                      <span className="cell-icon">
+                        <PhoneIcon size={14} />
+                        {business.contactPhone}
+                      </span>
+                    ) : (
+                      '—'
+                    )}
+                  </td>
+                  <td>
+                    <span className="cell-icon">
+                      <BoxIcon size={14} />
+                      {business.productCount}
+                    </span>
+                  </td>
+                  <td>
+                    <span className="cell-icon" title={business.active ? 'Visible' : 'Oculto'}>
+                      {business.active ? <CheckIcon size={16} /> : <CloseIcon size={16} />}
+                      {business.active ? 'Sí' : 'No'}
+                    </span>
+                  </td>
+                  <td>
+                    <span className="row-actions">
+                      <button type="button" className="link" onClick={() => edit(business)}>
+                        <PencilIcon size={14} /> Editar
+                      </button>
+                      <button type="button" className="link" onClick={() => void remove(business)}>
+                        <TrashIcon size={14} /> Eliminar
+                      </button>
+                    </span>
                   </td>
                 </tr>
               ))}

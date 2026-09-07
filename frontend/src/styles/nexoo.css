@@ -1030,3 +1030,216 @@ th {
     flex-basis: calc(100% - 80px);
   }
 }
+
+/* ------------------------- Campos con icono ---------------------------- */
+
+.label-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.label-icon svg {
+  color: var(--nexoo-muted);
+  flex: none;
+}
+
+.input-icon {
+  position: relative;
+  display: block;
+}
+
+.input-icon > svg {
+  position: absolute;
+  left: 12px;
+  top: 13px;
+  color: var(--nexoo-muted);
+  pointer-events: none;
+}
+
+.input-icon > input,
+.input-icon > select {
+  padding-left: 36px;
+}
+
+.form-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* -------------------------- Selector múltiple -------------------------- */
+
+.multiselect {
+  position: relative;
+}
+
+.multiselect-control {
+  width: 100%;
+  min-height: 44px;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 6px 10px 6px 12px;
+  background: #fff;
+  color: inherit;
+  font-weight: 400;
+  border: 1px solid var(--nexoo-border-strong);
+  border-radius: 10px;
+}
+
+.multiselect-control:hover:not(:disabled) {
+  background: #fff;
+  border-color: var(--nexoo-muted);
+}
+
+.multiselect-placeholder {
+  color: var(--nexoo-muted);
+}
+
+.multiselect-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  text-align: left;
+}
+
+.multiselect-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px 3px 10px;
+  border-radius: 999px;
+  background: var(--nexoo-primary-soft);
+  color: var(--nexoo-primary-dark);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.multiselect-chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.multiselect-chip-remove:hover {
+  background: rgba(15, 118, 110, 0.18);
+}
+
+.multiselect-caret {
+  flex: none;
+  color: var(--nexoo-muted);
+  transition: transform 0.15s ease;
+}
+
+.multiselect-caret.open {
+  transform: rotate(180deg);
+}
+
+.multiselect-menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--nexoo-surface);
+  border: 1px solid var(--nexoo-border-strong);
+  border-radius: 10px;
+  box-shadow: var(--nexoo-shadow);
+}
+
+.multiselect-option {
+  width: 100%;
+  justify-content: flex-start;
+  gap: var(--space-2);
+  padding: 8px 10px;
+  background: none;
+  color: inherit;
+  font-weight: 500;
+  border-radius: var(--nexoo-radius-sm);
+}
+
+.multiselect-option:hover:not(:disabled) {
+  background: var(--nexoo-surface-alt);
+}
+
+.multiselect-option.selected {
+  color: var(--nexoo-primary-dark);
+}
+
+.multiselect-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--nexoo-border-strong);
+  border-radius: 4px;
+  color: #fff;
+}
+
+.multiselect-option.selected .multiselect-box {
+  background: var(--nexoo-primary);
+  border-color: var(--nexoo-primary);
+}
+
+.multiselect-empty {
+  padding: 8px 10px;
+  color: var(--nexoo-muted);
+  font-size: 0.9rem;
+}
+
+/* --------------------- Etiquetas en tablas de admin -------------------- */
+
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--nexoo-surface-alt);
+  color: var(--nexoo-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.cell-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cell-icon svg {
+  color: var(--nexoo-muted);
+  flex: none;
+}
+
+.row-actions {
+  display: inline-flex;
+  gap: var(--space-3);
+}
+
+.row-actions button.link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  text-decoration: none;
+}
+
+.row-actions button.link:hover:not(:disabled) {
+  text-decoration: underline;
+}
