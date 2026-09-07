@@ -39,10 +39,14 @@ export function CheckoutPage() {
   if (cart.lines.length === 0) {
     return (
       <>
-        <h1 className="page-title">Checkout</h1>
-        <p className="empty">
-          No hay productos en el carrito. <Link to="/">Explora el catálogo</Link>.
-        </p>
+        <h1 className="page-title">Confirmar pedido</h1>
+        <div className="empty-state">
+          <h3>No hay productos en el carrito</h3>
+          <p>Agrega productos de un negocio antes de confirmar el pedido.</p>
+          <Link className="button" to="/">
+            Explorar el catálogo
+          </Link>
+        </div>
       </>
     );
   }
@@ -71,14 +75,26 @@ export function CheckoutPage() {
 
   return (
     <>
-      <h1 className="page-title">Confirmar pedido</h1>
-      <p className="page-subtitle">Pedido a {cart.businessName}</p>
+      <ol className="steps">
+        <li>Carrito</li>
+        <li className="current">Datos de entrega</li>
+        <li>Pago</li>
+      </ol>
 
-      {error && <div className="alert error">{error}</div>}
+      <h1 className="page-title">Confirmar pedido</h1>
+      <p className="page-subtitle">
+        Pedido a <strong>{cart.businessName}</strong>
+      </p>
+
+      {error && (
+        <div className="alert error" role="alert">
+          {error}
+        </div>
+      )}
 
       <form className="checkout-layout" onSubmit={submit}>
         <div>
-          <div className="card" style={{ marginBottom: 20 }}>
+          <div className="card" style={{ marginBottom: 'var(--space-5)' }}>
             <h3>Tus datos (comprador en EE.UU.)</h3>
             <div className="field">
               <label htmlFor="buyerName">Nombre completo</label>
@@ -175,6 +191,9 @@ export function CheckoutPage() {
                 value={form.recipientAddress}
                 onChange={(e) => set('recipientAddress', e.target.value)}
               />
+              <p className="field-hint">
+                Incluye calle, número, entre calles y una referencia para encontrar la casa.
+              </p>
             </div>
             <div className="field">
               <label htmlFor="notes">Notas para el negocio (opcional)</label>
@@ -189,7 +208,7 @@ export function CheckoutPage() {
           </div>
         </div>
 
-        <aside className="card">
+        <aside className="card checkout-summary" aria-label="Resumen del pedido">
           <h3>Resumen</h3>
           {cart.lines.map(({ product, quantity }) => (
             <div key={product.id} className="cart-line">
@@ -210,7 +229,12 @@ export function CheckoutPage() {
             El pago se coordina por Zelle después de confirmar. Te mostraremos las instrucciones en
             la página siguiente.
           </p>
-          <button type="submit" disabled={submitting} style={{ width: '100%', marginTop: 12 }}>
+          <button
+            type="submit"
+            className="full-width"
+            disabled={submitting}
+            style={{ marginTop: 'var(--space-3)' }}
+          >
             {submitting ? 'Enviando…' : 'Confirmar pedido'}
           </button>
         </aside>
