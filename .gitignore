@@ -1,0 +1,13 @@
+# .NET
+bin/
+obj/
+*.user
+
+# Node
+node_modules/
+dist/
+
+# Env
+.env
+.env.local
+*.local
