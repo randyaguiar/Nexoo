@@ -46,7 +46,7 @@ export function CatalogPage() {
   return (
     <>
       <section className="hero">
-        <h1>Compra en Cuba desde EE.UU.</h1>
+        <h1>Cerca de los tuyos, aunque estés lejos.</h1>
         <p>
           Elige un negocio local, arma el pedido y lo entregamos a tu familia en Cuba. Sin envíos ni
           esperas: el negocio prepara todo allá mismo.
