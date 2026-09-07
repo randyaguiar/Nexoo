@@ -353,8 +353,10 @@ export const api = {
     if (error) fail(error);
     if (!data) throw new Error('Negocio no encontrado.');
 
+    // product_catalog en lugar de products: el comprador debe ver el stock libre,
+    // sin las unidades que otros carritos tienen reservadas.
     const { data: productRows, error: productsError } = await supabase
-      .from('products')
+      .from('product_catalog')
       .select('*')
       .eq('business_id', id)
       .order('name');
