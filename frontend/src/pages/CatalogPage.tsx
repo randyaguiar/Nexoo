@@ -162,7 +162,11 @@ export function CatalogPage() {
                   )}
                   <div>
                     <span className="tag">{business.provinceName}</span>
-                    {business.categoryName && <span className="tag">{business.categoryName}</span>}
+                    {business.categories.map((c) => (
+                      <span key={c.id} className="tag">
+                        {c.name}
+                      </span>
+                    ))}
                   </div>
                 </div>
                 <h3>{business.name}</h3>

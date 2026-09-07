@@ -624,6 +624,32 @@ textarea {
   margin-bottom: var(--space-4);
 }
 
+.field-label {
+  display: block;
+  font-size: 0.88rem;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.checkbox-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
+.checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-weight: 500;
+}
+
+.checkbox input {
+  width: auto;
+  margin: 0;
+}
+
 .field-hint {
   margin: 6px 0 0;
   font-size: 0.82rem;

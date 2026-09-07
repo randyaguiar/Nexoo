@@ -29,7 +29,8 @@ supabase/seed.sql    catálogo de prueba
 
 | Tabla         | Campos clave                                                                                             |
 | ------------- | --------------------------------------------------------------------------------------------------------- |
-| `businesses`  | name, description, logo_url, province, municipality_id/municipality, category_id, contact_phone, active      |
+| `businesses`  | name, description, logo_url, province, municipality_id/municipality, contact_phone, active                   |
+| `business_categories` | business_id + category_id (un negocio puede ofrecer varios servicios)                               |
 | `provinces`   | code (PK, p. ej. `LaHabana`), name, active                                                                  |
 | `municipalities` | province_code, name, active (único por provincia)                                                        |
 | `categories`  | name (único), description, active — tipo de servicio del negocio                                            |
@@ -39,7 +40,8 @@ supabase/seed.sql    catálogo de prueba
 | `admins`      | user_id (→ `auth.users`), email, role (`owner` \| `staff`)                                                   |
 
 Provincias, municipios y categorías se gestionan desde el panel (`/admin/lugares`,
-`/admin/categorias`). `businesses.province` y `orders.recipient_province` guardan el código de la
+`/admin/categorias`). Guardar un negocio y sus categorías es una sola transacción, `save_business()`
+(sin `security definer`: las policies de admin siguen decidiendo). `businesses.province` y `orders.recipient_province` guardan el código de la
 provincia con FK a `provinces`; el trigger `businesses_sync_municipality` deriva `province` y
 `municipality` del `municipality_id` elegido, así que no pueden quedar desalineados y renombrar un
 municipio se propaga a sus negocios. `status` (`PendingPayment`, `Paid`, `PaidToBusiness`,

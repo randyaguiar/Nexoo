@@ -1,14 +1,17 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../api/client';
-import type { Municipality, ProvinceRef } from '../../api/types';
+import type { Business, Municipality, ProvinceRef } from '../../api/types';
 
 const emptyProvince = { code: '', name: '', active: true };
 
 export function AdminPlacesPage() {
   const [provinces, setProvinces] = useState<ProvinceRef[]>([]);
   const [municipalities, setMunicipalities] = useState<Municipality[]>([]);
+  const [businesses, setBusinesses] = useState<Business[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // El aviso del municipio se muestra junto a su tabla, no al principio de la página.
+  const [municipalityError, setMunicipalityError] = useState<string | null>(null);
 
   const [provinceForm, setProvinceForm] = useState(emptyProvince);
   const [editingProvince, setEditingProvince] = useState<string | null>(null);
@@ -21,12 +24,14 @@ export function AdminPlacesPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [provinceList, municipalityList] = await Promise.all([
+      const [provinceList, municipalityList, businessList] = await Promise.all([
         api.listProvinces(),
         api.listMunicipalities(),
+        api.admin.listBusinesses(),
       ]);
       setProvinces(provinceList);
       setMunicipalities(municipalityList);
+      setBusinesses(businessList);
       setSelectedProvince((current) => current || provinceList[0]?.code || '');
       setError(null);
     } catch (e) {
@@ -97,11 +102,11 @@ export function AdminPlacesPage() {
       } else {
         await api.admin.createMunicipality(input);
       }
-      setError(null);
+      setMunicipalityError(null);
       resetMunicipality();
       await load();
     } catch (e) {
-      setError((e as Error).message);
+      setMunicipalityError((e as Error).message);
     }
   };
 
@@ -109,12 +114,16 @@ export function AdminPlacesPage() {
     if (!confirm(`¿Eliminar el municipio "${municipality.name}"?`)) return;
     try {
       await api.admin.deleteMunicipality(municipality.id);
+      setMunicipalityError(null);
       if (editingMunicipality === municipality.id) resetMunicipality();
       await load();
     } catch (e) {
-      setError((e as Error).message);
+      setMunicipalityError((e as Error).message);
     }
   };
+
+  const businessesIn = (municipalityId: string) =>
+    businesses.filter((b) => b.municipalityId === municipalityId).length;
 
   const visibleMunicipalities = municipalities.filter(
     (m) => m.provinceCode === selectedProvince,
@@ -212,6 +221,12 @@ export function AdminPlacesPage() {
                     <button
                       type="button"
                       className="link"
+                      disabled={businesses.some((b) => b.province === province.code)}
+                      title={
+                        businesses.some((b) => b.province === province.code)
+                          ? 'Tiene negocios: desmarca "Visible" en lugar de borrarla.'
+                          : undefined
+                      }
                       onClick={() => void removeProvince(province)}
                     >
                       Eliminar
@@ -225,6 +240,7 @@ export function AdminPlacesPage() {
       )}
 
       <h3>Municipios</h3>
+      {municipalityError && <div className="alert error">{municipalityError}</div>}
       <form className="card" style={{ marginBottom: 24 }} onSubmit={submitMunicipality}>
         <div className="field-row">
           <div className="field">
@@ -289,6 +305,7 @@ export function AdminPlacesPage() {
             <thead>
               <tr>
                 <th>Municipio</th>
+                <th>Negocios</th>
                 <th>Visible</th>
                 <th />
               </tr>
@@ -297,6 +314,7 @@ export function AdminPlacesPage() {
               {visibleMunicipalities.map((municipality) => (
                 <tr key={municipality.id}>
                   <td>{municipality.name}</td>
+                  <td>{businessesIn(municipality.id)}</td>
                   <td>{municipality.active ? 'Sí' : 'No'}</td>
                   <td>
                     <button
@@ -313,6 +331,12 @@ export function AdminPlacesPage() {
                     <button
                       type="button"
                       className="link"
+                      disabled={businessesIn(municipality.id) > 0}
+                      title={
+                        businessesIn(municipality.id) > 0
+                          ? 'Tiene negocios: muévelos de municipio o desmarca "Visible" al editarlo.'
+                          : undefined
+                      }
                       onClick={() => void removeMunicipality(municipality)}
                     >
                       Eliminar
