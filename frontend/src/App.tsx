@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './auth/AuthContext';
 import { CartProvider } from './cart/CartContext';
 import { Layout } from './components/Layout';
+import { AccountPage } from './pages/AccountPage';
 import { BusinessPage } from './pages/BusinessPage';
 import { CartPage } from './pages/CartPage';
 import { CatalogPage } from './pages/CatalogPage';
@@ -34,6 +35,7 @@ export function App() {
           <Route path="entrar" element={<LoginPage />} />
           <Route path="registro" element={<RegisterPage />} />
           <Route path="mis-pedidos" element={<MyOrdersPage />} />
+          <Route path="cuenta" element={<AccountPage />} />
 
           <Route path="admin/login" element={<AdminLoginPage />} />
           <Route path="admin" element={<AdminLayout />}>

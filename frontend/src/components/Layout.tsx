@@ -1,18 +1,13 @@
-import { Link, Outlet, useNavigate } from 'react-router-dom';
-import { api } from '../api/client';
+import { Link, Outlet } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { useCart } from '../cart/CartContext';
+import { CartIcon, GridIcon, LoginIcon, ShieldIcon } from './Icon';
 import { Logo, LogoMark } from './Logo';
+import { UserMenu } from './UserMenu';
 
 export function Layout() {
   const { itemCount } = useCart();
   const { user, admin } = useAuth();
-  const navigate = useNavigate();
-
-  const logout = async () => {
-    await api.auth.logout();
-    navigate('/');
-  };
 
   return (
     <>
@@ -31,20 +26,18 @@ export function Layout() {
             </span>
           </Link>
           <nav className="header-nav" aria-label="Principal">
-            <Link to="/">Catálogo</Link>
-            {user ? (
-              <>
-                {admin && <Link to="/admin/pedidos">Panel</Link>}
-                <Link to="/mis-pedidos">Mis pedidos</Link>
-                <button type="button" className="link" onClick={() => void logout()}>
-                  Salir
-                </button>
-              </>
-            ) : (
-              <Link to="/entrar">Entrar</Link>
+            <Link to="/">
+              <GridIcon size={16} />
+              Catálogo
+            </Link>
+            {admin && (
+              <Link to="/admin/pedidos">
+                <ShieldIcon size={16} />
+                Panel Admin
+              </Link>
             )}
-            <Link to="/carrito" className="cart-link">
-              Carrito
+            <Link to="/carrito" className="cart-link" aria-label="Carrito de compras">
+              <CartIcon size={18} />
               {itemCount > 0 && (
                 <span className="cart-badge" aria-hidden="true">
                   {itemCount}
@@ -56,6 +49,14 @@ export function Layout() {
                   : `(${itemCount} ${itemCount === 1 ? 'producto' : 'productos'})`}
               </span>
             </Link>
+            {user ? (
+              <UserMenu />
+            ) : (
+              <Link to="/entrar">
+                <LoginIcon size={16} />
+                Entrar
+              </Link>
+            )}
           </nav>
         </div>
       </header>
@@ -99,7 +100,7 @@ export function Layout() {
                   </Link>
                 </li>
                 <li>
-                  <Link to={admin ? '/admin/pedidos' : '/admin/login'}>Acceso admin</Link>
+                  <Link to={admin ? '/admin/pedidos' : '/admin/login'}>Panel Admin</Link>
                 </li>
               </ul>
             </div>

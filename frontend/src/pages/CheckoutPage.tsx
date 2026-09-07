@@ -36,6 +36,9 @@ export function CheckoutPage() {
   const { user } = useAuth();
   const [form, setForm] = useState<FormState>(() => ({
     ...initialForm,
+    // El perfil de la cuenta (Mi cuenta) rellena los datos del comprador.
+    buyerName: typeof user?.user_metadata.full_name === 'string' ? user.user_metadata.full_name : '',
+    buyerPhone: typeof user?.user_metadata.phone === 'string' ? user.user_metadata.phone : '',
     buyerEmail: user?.email ?? '',
   }));
   const [submitting, setSubmitting] = useState(false);
