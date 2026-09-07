@@ -1,5 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../api/client';
+import {
+  CheckIcon,
+  CloseIcon,
+  PencilIcon,
+  PlusIcon,
+  TagIcon,
+  TrashIcon,
+} from '../../components/Icon';
+import { Modal } from '../../components/Modal';
 import type { Category, CategoryInput } from '../../api/types';
 
 const emptyForm: CategoryInput = { name: '', description: '', active: true };
@@ -8,6 +17,7 @@ export function AdminCategoriesPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [form, setForm] = useState<CategoryInput>(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -30,9 +40,26 @@ export function AdminCategoriesPage() {
   const set = <K extends keyof CategoryInput>(key: K, value: CategoryInput[K]) =>
     setForm((current) => ({ ...current, [key]: value }));
 
-  const reset = () => {
+  const closeForm = () => {
     setForm(emptyForm);
     setEditingId(null);
+    setFormOpen(false);
+  };
+
+  const openCreate = () => {
+    setForm(emptyForm);
+    setEditingId(null);
+    setFormOpen(true);
+  };
+
+  const edit = (category: Category) => {
+    setEditingId(category.id);
+    setFormOpen(true);
+    setForm({
+      name: category.name,
+      description: category.description ?? '',
+      active: category.active,
+    });
   };
 
   const submit = async (event: React.FormEvent) => {
@@ -49,7 +76,7 @@ export function AdminCategoriesPage() {
         await api.admin.createCategory(payload);
       }
       setError(null);
-      reset();
+      closeForm();
       await load();
     } catch (e) {
       setError((e as Error).message);
@@ -66,7 +93,7 @@ export function AdminCategoriesPage() {
     }
     try {
       await api.admin.deleteCategory(category.id);
-      if (editingId === category.id) reset();
+      if (editingId === category.id) closeForm();
       await load();
     } catch (e) {
       setError((e as Error).message);
@@ -77,50 +104,14 @@ export function AdminCategoriesPage() {
     <>
       {error && <div className="alert error">{error}</div>}
 
-      <form className="card" style={{ marginBottom: 24 }} onSubmit={submit}>
-        <h3>{editingId ? 'Editar categoría' : 'Nueva categoría'}</h3>
-        <div className="field">
-          <label htmlFor="categoryName">Nombre</label>
-          <input
-            id="categoryName"
-            required
-            maxLength={120}
-            value={form.name}
-            onChange={(e) => set('name', e.target.value)}
-          />
-          <p className="field-hint">Tipo de servicio que ofrece el negocio (ej. Cafetería).</p>
-        </div>
-        <div className="field">
-          <label htmlFor="categoryDescription">Descripción</label>
-          <textarea
-            id="categoryDescription"
-            rows={2}
-            maxLength={2000}
-            value={form.description ?? ''}
-            onChange={(e) => set('description', e.target.value)}
-          />
-        </div>
-        <div className="field">
-          <label htmlFor="categoryActive">
-            <input
-              id="categoryActive"
-              type="checkbox"
-              style={{ width: 'auto', marginRight: 8 }}
-              checked={form.active}
-              onChange={(e) => set('active', e.target.checked)}
-            />
-            Visible en el catálogo
-          </label>
-        </div>
-        <div className="filters" style={{ margin: 0 }}>
-          <button type="submit">{editingId ? 'Guardar cambios' : 'Crear categoría'}</button>
-          {editingId && (
-            <button type="button" className="secondary" onClick={reset}>
-              Cancelar
-            </button>
-          )}
-        </div>
-      </form>
+      <div className="page-toolbar">
+        <h3 className="form-title">
+          <TagIcon size={18} /> Categorías
+        </h3>
+        <button type="button" onClick={openCreate}>
+          <PlusIcon /> Nueva categoría
+        </button>
+      </div>
 
       {loading && <p className="empty">Cargando categorías…</p>}
       {!loading && categories.length === 0 && <p className="empty">Aún no hay categorías.</p>}
@@ -143,29 +134,88 @@ export function AdminCategoriesPage() {
                   <td>{category.description ?? '—'}</td>
                   <td>{category.active ? 'Sí' : 'No'}</td>
                   <td>
-                    <button
-                      type="button"
-                      className="link"
-                      onClick={() => {
-                        setEditingId(category.id);
-                        setForm({
-                          name: category.name,
-                          description: category.description ?? '',
-                          active: category.active,
-                        });
-                      }}
-                    >
-                      Editar
-                    </button>{' '}
-                    <button type="button" className="link" onClick={() => void remove(category)}>
-                      Eliminar
-                    </button>
+                    <span className="row-actions">
+                      <button
+                        type="button"
+                        className="icon-button"
+                        title="Editar categoría"
+                        aria-label={`Editar ${category.name}`}
+                        onClick={() => edit(category)}
+                      >
+                        <PencilIcon size={15} />
+                      </button>
+                      <button
+                        type="button"
+                        className="icon-button danger"
+                        title="Eliminar categoría"
+                        aria-label={`Eliminar ${category.name}`}
+                        onClick={() => void remove(category)}
+                      >
+                        <TrashIcon size={15} />
+                      </button>
+                    </span>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+      )}
+
+      {formOpen && (
+        <Modal
+          title={
+            <>
+              {editingId ? <PencilIcon size={18} /> : <PlusIcon size={18} />}
+              {editingId ? 'Editar categoría' : 'Nueva categoría'}
+            </>
+          }
+          onClose={closeForm}
+        >
+          <form onSubmit={submit}>
+            <div className="field">
+              <label htmlFor="categoryName">Nombre</label>
+              <input
+                id="categoryName"
+                required
+                maxLength={120}
+                value={form.name}
+                onChange={(e) => set('name', e.target.value)}
+              />
+              <p className="field-hint">Tipo de servicio que ofrece el negocio (ej. Cafetería).</p>
+            </div>
+            <div className="field">
+              <label htmlFor="categoryDescription">Descripción</label>
+              <textarea
+                id="categoryDescription"
+                rows={2}
+                maxLength={2000}
+                value={form.description ?? ''}
+                onChange={(e) => set('description', e.target.value)}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="categoryActive" className="checkbox">
+                <input
+                  id="categoryActive"
+                  type="checkbox"
+                  checked={form.active}
+                  onChange={(e) => set('active', e.target.checked)}
+                />
+                Visible en el catálogo
+              </label>
+            </div>
+            <div className="modal-footer">
+              <button type="button" className="secondary" onClick={closeForm}>
+                <CloseIcon /> Cancelar
+              </button>
+              <button type="submit">
+                {editingId ? <CheckIcon /> : <PlusIcon />}
+                {editingId ? 'Guardar cambios' : 'Crear categoría'}
+              </button>
+            </div>
+          </form>
+        </Modal>
       )}
     </>
   );

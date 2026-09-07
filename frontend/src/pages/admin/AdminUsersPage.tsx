@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../api/client';
+import { CloseIcon, PlusIcon, TrashIcon } from '../../components/Icon';
+import { Modal } from '../../components/Modal';
 import {
   ADMIN_ROLES,
   adminRoleLabel,
@@ -18,6 +20,7 @@ export function AdminUsersPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -56,6 +59,7 @@ export function AdminUsersPage() {
           : `Invitación enviada a ${form.email}.`,
       );
       setForm(emptyForm);
+      setFormOpen(false);
       await load();
     } catch (e) {
       setError((e as Error).message);
@@ -98,50 +102,12 @@ export function AdminUsersPage() {
       )}
 
       {isOwner && (
-        <form className="card" style={{ marginBottom: 24 }} onSubmit={submit}>
-          <h3>Nuevo usuario del panel</h3>
-          <div className="field-row">
-            <div className="field">
-              <label htmlFor="email">Email</label>
-              <input
-                id="email"
-                type="email"
-                required
-                value={form.email}
-                onChange={(e) => set('email', e.target.value)}
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="role">Rol</label>
-              <select
-                id="role"
-                value={form.role}
-                onChange={(e) => set('role', e.target.value as AdminRole)}
-              >
-                {ADMIN_ROLES.map((r) => (
-                  <option key={r.value} value={r.value}>
-                    {r.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <div className="field">
-            <label htmlFor="password">Contraseña (opcional)</label>
-            <input
-              id="password"
-              type="password"
-              minLength={8}
-              autoComplete="new-password"
-              value={form.password}
-              onChange={(e) => set('password', e.target.value)}
-            />
-            <p className="field-hint">Si la dejas vacía se envía una invitación por email.</p>
-          </div>
-          <button type="submit" disabled={submitting}>
-            {submitting ? 'Creando…' : 'Dar acceso'}
+        <div className="page-toolbar">
+          <h3 className="form-title">Usuarios del panel</h3>
+          <button type="button" onClick={() => setFormOpen(true)}>
+            <PlusIcon /> Nuevo usuario
           </button>
-        </form>
+        </div>
       )}
 
       {loading && <p className="empty">Cargando usuarios…</p>}
@@ -184,9 +150,17 @@ export function AdminUsersPage() {
                   {isOwner && (
                     <td>
                       {user.userId !== current?.userId && (
-                        <button type="button" className="link" onClick={() => void remove(user)}>
-                          Quitar acceso
-                        </button>
+                        <span className="row-actions">
+                          <button
+                            type="button"
+                            className="icon-button danger"
+                            title="Quitar acceso"
+                            aria-label={`Quitar acceso a ${user.email}`}
+                            onClick={() => void remove(user)}
+                          >
+                            <TrashIcon size={15} />
+                          </button>
+                        </span>
                       )}
                     </td>
                   )}
@@ -195,6 +169,67 @@ export function AdminUsersPage() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {formOpen && (
+        <Modal
+          title={
+            <>
+              <PlusIcon size={18} /> Nuevo usuario del panel
+            </>
+          }
+          onClose={() => setFormOpen(false)}
+        >
+          <form onSubmit={submit}>
+            <div className="field-row">
+              <div className="field">
+                <label htmlFor="email">Email</label>
+                <input
+                  id="email"
+                  type="email"
+                  required
+                  value={form.email}
+                  onChange={(e) => set('email', e.target.value)}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="role">Rol</label>
+                <select
+                  id="role"
+                  value={form.role}
+                  onChange={(e) => set('role', e.target.value as AdminRole)}
+                >
+                  {ADMIN_ROLES.map((r) => (
+                    <option key={r.value} value={r.value}>
+                      {r.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="field">
+              <label htmlFor="password">Contraseña (opcional)</label>
+              <input
+                id="password"
+                type="password"
+                minLength={8}
+                autoComplete="new-password"
+                value={form.password}
+                onChange={(e) => set('password', e.target.value)}
+              />
+              <p className="field-hint">Si la dejas vacía se envía una invitación por email.</p>
+            </div>
+            <div className="modal-footer">
+              <button type="button" className="secondary" onClick={() => setFormOpen(false)}>
+                <CloseIcon /> Cancelar
+              </button>
+              <button type="submit" disabled={submitting}>
+                <PlusIcon />
+                {submitting ? 'Creando…' : 'Dar acceso'}
+              </button>
+            </div>
+          </form>
+        </Modal>
       )}
     </>
   );
