@@ -5,17 +5,25 @@ import { Modal } from '../../components/Modal';
 import {
   ADMIN_ROLES,
   adminRoleLabel,
+  isBusinessScoped,
   type AdminRole,
   type AdminUser,
   type AdminUserInput,
+  type Business,
 } from '../../api/types';
 
-const emptyForm: AdminUserInput = { email: '', password: '', role: 'staff' };
+const emptyForm = (role: AdminRole, businessId: string | null): AdminUserInput => ({
+  email: '',
+  password: '',
+  role,
+  businessId,
+});
 
 export function AdminUsersPage() {
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [businesses, setBusinesses] = useState<Business[]>([]);
   const [current, setCurrent] = useState<AdminUser | null>(null);
-  const [form, setForm] = useState<AdminUserInput>(emptyForm);
+  const [form, setForm] = useState<AdminUserInput>(emptyForm('worker', null));
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -25,9 +33,14 @@ export function AdminUsersPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [list, me] = await Promise.all([api.admin.listUsers(), api.admin.currentAdmin()]);
+      const [list, me, businessList] = await Promise.all([
+        api.admin.listUsers(),
+        api.admin.currentAdmin(),
+        api.admin.listBusinesses(),
+      ]);
       setUsers(list);
       setCurrent(me);
+      setBusinesses(businessList);
       setError(null);
     } catch (e) {
       setError((e as Error).message);
@@ -44,6 +57,24 @@ export function AdminUsersPage() {
     setForm((f) => ({ ...f, [key]: value }));
 
   const isOwner = current?.role === 'owner';
+  // El admin de negocio solo puede dar de alta trabajadores de su propio negocio.
+  const canManage = isOwner || current?.role === 'business_admin';
+  const roleOptions = isOwner ? ADMIN_ROLES : ADMIN_ROLES.filter((r) => r.value === 'worker');
+  const businessName = (id: string | null) =>
+    businesses.find((b) => b.id === id)?.name ?? (id ? '—' : 'Global');
+
+  const resetForm = () =>
+    setForm(
+      isOwner ? emptyForm('staff', null) : emptyForm('worker', current?.businessId ?? null),
+    );
+
+  /** Cambiar a un rol de negocio exige elegir negocio; a uno global, limpiarlo. */
+  const setRole = (role: AdminRole) =>
+    setForm((f) => ({
+      ...f,
+      role,
+      businessId: isBusinessScoped(role) ? (f.businessId ?? current?.businessId ?? null) : null,
+    }));
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -58,7 +89,7 @@ export function AdminUsersPage() {
           ? `${form.email} ya puede entrar con la contraseña indicada.`
           : `Invitación enviada a ${form.email}.`,
       );
-      setForm(emptyForm);
+      resetForm();
       setFormOpen(false);
       await load();
     } catch (e) {
@@ -72,7 +103,11 @@ export function AdminUsersPage() {
     setError(null);
     setNotice(null);
     try {
-      await api.admin.setUserRole(user.userId, role);
+      await api.admin.setUserRole(
+        user.userId,
+        role,
+        isBusinessScoped(role) ? user.businessId : null,
+      );
       await load();
     } catch (e) {
       setError((e as Error).message);
@@ -97,14 +132,20 @@ export function AdminUsersPage() {
       {error && <div className="alert error">{error}</div>}
       {notice && <div className="alert success">{notice}</div>}
 
-      {!loading && !isOwner && (
-        <p className="empty">Solo un owner puede gestionar los usuarios del panel.</p>
+      {!loading && !canManage && (
+        <p className="empty">No tienes permiso para gestionar los usuarios del panel.</p>
       )}
 
-      {isOwner && (
+      {canManage && (
         <div className="page-toolbar">
           <h3 className="form-title">Usuarios del panel</h3>
-          <button type="button" onClick={() => setFormOpen(true)}>
+          <button
+            type="button"
+            onClick={() => {
+              resetForm();
+              setFormOpen(true);
+            }}
+          >
             <PlusIcon /> Nuevo usuario
           </button>
         </div>
@@ -119,8 +160,9 @@ export function AdminUsersPage() {
               <tr>
                 <th>Email</th>
                 <th>Rol</th>
+                <th>Negocio</th>
                 <th>Alta</th>
-                {isOwner && <th />}
+                {canManage && <th />}
               </tr>
             </thead>
             <tbody>
@@ -136,7 +178,7 @@ export function AdminUsersPage() {
                         value={user.role}
                         onChange={(e) => void changeRole(user, e.target.value as AdminRole)}
                       >
-                        {ADMIN_ROLES.map((r) => (
+                        {roleOptions.map((r) => (
                           <option key={r.value} value={r.value}>
                             {r.label}
                           </option>
@@ -146,8 +188,9 @@ export function AdminUsersPage() {
                       adminRoleLabel(user.role)
                     )}
                   </td>
+                  <td>{businessName(user.businessId)}</td>
                   <td>{new Date(user.createdAt).toLocaleDateString('es')}</td>
-                  {isOwner && (
+                  {canManage && (
                     <td>
                       {user.userId !== current?.userId && (
                         <span className="row-actions">
@@ -197,9 +240,10 @@ export function AdminUsersPage() {
                 <select
                   id="role"
                   value={form.role}
-                  onChange={(e) => set('role', e.target.value as AdminRole)}
+                  onChange={(e) => setRole(e.target.value as AdminRole)}
+                  disabled={!isOwner}
                 >
-                  {ADMIN_ROLES.map((r) => (
+                  {roleOptions.map((r) => (
                     <option key={r.value} value={r.value}>
                       {r.label}
                     </option>
@@ -207,6 +251,25 @@ export function AdminUsersPage() {
                 </select>
               </div>
             </div>
+            {isBusinessScoped(form.role) && (
+              <div className="field">
+                <label htmlFor="userBusiness">Negocio</label>
+                <select
+                  id="userBusiness"
+                  required
+                  value={form.businessId ?? ''}
+                  onChange={(e) => set('businessId', e.target.value || null)}
+                  disabled={!isOwner}
+                >
+                  <option value="">Elige un negocio</option>
+                  {businesses.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="field">
               <label htmlFor="password">Contraseña (opcional)</label>
               <input

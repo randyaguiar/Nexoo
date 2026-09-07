@@ -1,5 +1,14 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
-import type { Business, Product } from '../api/types';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
+import { api } from '../api/client';
+import type { Business, CartReservation, Product } from '../api/types';
 
 export interface CartLine {
   product: Product;
@@ -12,9 +21,23 @@ interface CartState {
   lines: CartLine[];
 }
 
+/** Una línea cuyo producto no tenía unidades suficientes para reservarse entera. */
+export interface CartShortage {
+  productId: string;
+  productName: string;
+  requested: number;
+  reserved: number;
+}
+
 interface CartContextValue extends CartState {
   itemCount: number;
   total: number;
+  /** Identifica al carrito ante la reserva de stock; el comprador puede no tener cuenta. */
+  cartToken: string;
+  /** Última respuesta de la reserva, o null si aún no se ha hecho ninguna. */
+  reservation: CartReservation | null;
+  /** Productos de los que no quedaban unidades para todo lo que hay en el carrito. */
+  shortages: CartShortage[];
   /**
    * Adds a product. A cart is limited to a single business because each business
    * is paid separately; adding from another business requires clearing the cart first.
@@ -27,6 +50,23 @@ interface CartContextValue extends CartState {
 }
 
 const STORAGE_KEY = 'nexoo.cart';
+const TOKEN_KEY = 'nexoo.cart.token';
+
+/** El token vive en el navegador y sobrevive a vaciar el carrito. */
+function loadToken(): string {
+  try {
+    const stored = localStorage.getItem(TOKEN_KEY);
+    if (stored) return stored;
+
+    const created = crypto.randomUUID();
+    localStorage.setItem(TOKEN_KEY, created);
+    return created;
+  } catch {
+    // Sin storage (modo privado) el token dura lo que la pestaña: la reserva
+    // sigue funcionando, solo que no se reaprovecha entre recargas.
+    return crypto.randomUUID();
+  }
+}
 
 const emptyCart: CartState = { businessId: null, businessName: null, lines: [] };
 
@@ -51,6 +91,32 @@ const CartContext = createContext<CartContextValue | null>(null);
 
 export function CartProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<CartState>(loadCart);
+  const [cartToken] = useState<string>(loadToken);
+  const [reservation, setReservation] = useState<CartReservation | null>(null);
+
+  // La reserva se renueva con cada cambio del carrito. La clave evita repetirla
+  // cuando cambia el estado sin cambiar lo que hay que reservar.
+  const lines = state.lines;
+  const linesKey = lines.map((l) => `${l.product.id}:${l.quantity}`).join(',');
+
+  useEffect(() => {
+    const items = lines.map((l) => ({ productId: l.product.id, quantity: l.quantity }));
+
+    // Se espera un momento para no reservar en cada pulsación del selector de cantidad.
+    const timer = setTimeout(() => {
+      api
+        .reserveCart(cartToken, items)
+        .then(setReservation)
+        // Si la reserva falla, el carrito sigue siendo usable: el stock se
+        // vuelve a comprobar al confirmar el pedido.
+        .catch(() => setReservation(null));
+    }, 400);
+
+    return () => clearTimeout(timer);
+    // linesKey, no `lines`: el array se recrea en cada render aunque no cambie
+    // lo que hay que reservar.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cartToken, linesKey]);
 
   const update = useCallback((next: CartState) => {
     persist(next);
@@ -102,11 +168,28 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const clear = useCallback(() => update(emptyCart), [update]);
 
+  const shortages = useMemo<CartShortage[]>(
+    () =>
+      (reservation?.items ?? [])
+        .filter((item) => item.reserved < item.requested)
+        .map((item) => ({
+          productId: item.productId,
+          productName:
+            state.lines.find((l) => l.product.id === item.productId)?.product.name ?? '',
+          requested: item.requested,
+          reserved: item.reserved,
+        })),
+    [reservation, state.lines],
+  );
+
   const value = useMemo<CartContextValue>(
     () => ({
       ...state,
       itemCount: state.lines.reduce((sum, l) => sum + l.quantity, 0),
       total: state.lines.reduce((sum, l) => sum + l.quantity * l.product.priceUsd, 0),
+      cartToken,
+      reservation,
+      shortages,
       addProduct,
       setQuantity,
       removeProduct,
@@ -114,7 +197,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       canAddFrom: (businessId: string) =>
         state.businessId === null || state.businessId === businessId,
     }),
-    [state, addProduct, setQuantity, removeProduct, clear],
+    [state, cartToken, reservation, shortages, addProduct, setQuantity, removeProduct, clear],
   );
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

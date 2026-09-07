@@ -184,7 +184,7 @@ export function AdminBusinessesPage() {
                 <th>Categorías</th>
                 <th>Ubicación</th>
                 <th>Teléfono</th>
-                <th>Productos</th>
+                <th>A la venta</th>
                 <th>Visible</th>
                 <th />
               </tr>

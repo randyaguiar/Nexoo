@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../api/client';
-import type { Business, Product, ProductInput } from '../../api/types';
+import { LOW_STOCK_THRESHOLD, type Business, type Product, type ProductInput } from '../../api/types';
+import { useAuth } from '../../auth/AuthContext';
 import {
   BoxIcon,
   CheckIcon,
@@ -19,9 +20,15 @@ const emptyForm = (businessId: string): ProductInput => ({
   priceUsd: 0,
   photoUrl: '',
   available: true,
+  stock: 0,
 });
 
 export function AdminProductsPage() {
+  const { admin } = useAuth();
+  // El trabajador solo mantiene el inventario: no crea, no borra y no cambia
+  // el nombre ni el precio de un producto.
+  const canManageCatalog = admin?.role !== 'worker';
+
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [selectedBusinessId, setSelectedBusinessId] = useState<string>('');
   const [products, setProducts] = useState<Product[]>([]);
@@ -108,6 +115,7 @@ export function AdminProductsPage() {
       priceUsd: product.priceUsd,
       photoUrl: product.photoUrl ?? '',
       available: product.available,
+      stock: product.stock,
     });
   };
 
@@ -152,9 +160,11 @@ export function AdminProductsPage() {
             ))}
           </select>
         </div>
-        <button type="button" onClick={openCreate}>
-          <PlusIcon /> Nuevo producto
-        </button>
+        {canManageCatalog && (
+          <button type="button" onClick={openCreate}>
+            <PlusIcon /> Nuevo producto
+          </button>
+        )}
       </div>
 
       {products.length === 0 ? (
@@ -166,6 +176,7 @@ export function AdminProductsPage() {
               <tr>
                 <th>Producto</th>
                 <th>Precio</th>
+                <th>Stock</th>
                 <th>Disponible</th>
                 <th />
               </tr>
@@ -181,27 +192,32 @@ export function AdminProductsPage() {
                     {product.description && <div className="meta">{product.description}</div>}
                   </td>
                   <td>{formatUsd(product.priceUsd)}</td>
+                  <td className={product.stock <= LOW_STOCK_THRESHOLD ? 'low-stock' : undefined}>
+                    {product.stock}
+                  </td>
                   <td>{product.available ? 'Sí' : 'No'}</td>
                   <td>
                     <span className="row-actions">
                       <button
                         type="button"
                         className="icon-button"
-                        title="Editar producto"
+                        title={canManageCatalog ? 'Editar producto' : 'Actualizar inventario'}
                         aria-label={`Editar ${product.name}`}
                         onClick={() => edit(product)}
                       >
                         <PencilIcon size={15} />
                       </button>
-                      <button
-                        type="button"
-                        className="icon-button danger"
-                        title="Eliminar producto"
-                        aria-label={`Eliminar ${product.name}`}
-                        onClick={() => void remove(product)}
-                      >
-                        <TrashIcon size={15} />
-                      </button>
+                      {canManageCatalog && (
+                        <button
+                          type="button"
+                          className="icon-button danger"
+                          title="Eliminar producto"
+                          aria-label={`Eliminar ${product.name}`}
+                          onClick={() => void remove(product)}
+                        >
+                          <TrashIcon size={15} />
+                        </button>
+                      )}
                     </span>
                   </td>
                 </tr>
@@ -216,7 +232,11 @@ export function AdminProductsPage() {
           title={
             <>
               {editingId ? <PencilIcon size={18} /> : <PlusIcon size={18} />}
-              {editingId ? 'Editar producto' : 'Nuevo producto'}
+              {!canManageCatalog
+                ? 'Actualizar inventario'
+                : editingId
+                  ? 'Editar producto'
+                  : 'Nuevo producto'}
             </>
           }
           onClose={closeForm}
@@ -228,6 +248,7 @@ export function AdminProductsPage() {
                 <input
                   id="productName"
                   required
+                  disabled={!canManageCatalog}
                   maxLength={160}
                   value={form.name}
                   onChange={(e) => set('name', e.target.value)}
@@ -239,6 +260,7 @@ export function AdminProductsPage() {
                   id="priceUsd"
                   type="number"
                   required
+                  disabled={!canManageCatalog}
                   min={0.01}
                   step={0.01}
                   value={form.priceUsd}
@@ -247,10 +269,23 @@ export function AdminProductsPage() {
               </div>
             </div>
             <div className="field">
+              <label htmlFor="stock">Unidades en inventario</label>
+              <input
+                id="stock"
+                type="number"
+                required
+                min={0}
+                step={1}
+                value={form.stock}
+                onChange={(e) => set('stock', Number(e.target.value))}
+              />
+            </div>
+            <div className="field">
               <label htmlFor="photoUrl">URL de la foto</label>
               <input
                 id="photoUrl"
                 type="url"
+                disabled={!canManageCatalog}
                 maxLength={1000}
                 value={form.photoUrl ?? ''}
                 onChange={(e) => set('photoUrl', e.target.value)}
@@ -261,6 +296,7 @@ export function AdminProductsPage() {
               <textarea
                 id="productDescription"
                 rows={2}
+                disabled={!canManageCatalog}
                 maxLength={2000}
                 value={form.description ?? ''}
                 onChange={(e) => set('description', e.target.value)}

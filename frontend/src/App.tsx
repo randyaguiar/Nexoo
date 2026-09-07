@@ -11,8 +11,10 @@ import { LoginPage } from './pages/LoginPage';
 import { MyOrdersPage } from './pages/MyOrdersPage';
 import { OrderConfirmationPage } from './pages/OrderConfirmationPage';
 import { RegisterPage } from './pages/RegisterPage';
+import { AdminActivityPage } from './pages/admin/AdminActivityPage';
 import { AdminBusinessesPage } from './pages/admin/AdminBusinessesPage';
 import { AdminCategoriesPage } from './pages/admin/AdminCategoriesPage';
+import { AdminDashboardPage } from './pages/admin/AdminDashboardPage';
 import { AdminLayout } from './pages/admin/AdminLayout';
 import { AdminLoginPage } from './pages/admin/AdminLoginPage';
 import { AdminOrdersPage } from './pages/admin/AdminOrdersPage';
@@ -40,12 +42,14 @@ export function App() {
           <Route path="admin/login" element={<AdminLoginPage />} />
           <Route path="admin" element={<AdminLayout />}>
             <Route index element={<Navigate to="/admin/pedidos" replace />} />
+            <Route path="dashboard" element={<AdminDashboardPage />} />
             <Route path="pedidos" element={<AdminOrdersPage />} />
             <Route path="negocios" element={<AdminBusinessesPage />} />
             <Route path="productos" element={<AdminProductsPage />} />
             <Route path="categorias" element={<AdminCategoriesPage />} />
             <Route path="lugares" element={<AdminPlacesPage />} />
             <Route path="usuarios" element={<AdminUsersPage />} />
+            <Route path="historial" element={<AdminActivityPage />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

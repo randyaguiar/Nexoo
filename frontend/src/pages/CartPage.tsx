@@ -2,6 +2,9 @@ import { Link } from 'react-router-dom';
 import { useCart } from '../cart/CartContext';
 import { formatUsd } from '../components/Money';
 
+const formatTime = (iso: string): string =>
+  new Date(iso).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
+
 export function CartPage() {
   const cart = useCart();
 
@@ -32,6 +35,29 @@ export function CartPage() {
       <p className="page-subtitle">
         Pedido a <strong>{cart.businessName}</strong>
       </p>
+
+      {cart.shortages.length > 0 && (
+        <div className="alert error" role="alert">
+          <p>No quedan unidades para todo lo que pediste:</p>
+          <ul>
+            {cart.shortages.map((shortage) => (
+              <li key={shortage.productId}>
+                <strong>{shortage.productName}</strong>: pediste {shortage.requested} y solo
+                quedan {shortage.reserved}.{' '}
+                {shortage.reserved > 0 && (
+                  <button
+                    type="button"
+                    className="link"
+                    onClick={() => cart.setQuantity(shortage.productId, shortage.reserved)}
+                  >
+                    Ajustar a {shortage.reserved}
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="card">
         {cart.lines.map(({ product, quantity }) => (
@@ -70,6 +96,9 @@ export function CartPage() {
 
       <p className="meta" style={{ marginTop: 'var(--space-4)' }}>
         Cada pedido se paga a un solo negocio. El pago se coordina por Zelle al confirmar.
+        {cart.reservation?.expiresAt && (
+          <> Te guardamos estos productos hasta las {formatTime(cart.reservation.expiresAt)}.</>
+        )}
       </p>
 
       <div className="filters" style={{ marginTop: 'var(--space-4)' }}>

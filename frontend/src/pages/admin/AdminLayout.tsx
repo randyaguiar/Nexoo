@@ -3,20 +3,52 @@ import { api } from '../../api/client';
 import { useAuth } from '../../auth/AuthContext';
 import {
   BoxIcon,
+  ChartIcon,
+  HistoryIcon,
   MapPinIcon,
   ReceiptIcon,
   StoreIcon,
   TagIcon,
   UsersIcon,
 } from '../../components/Icon';
+import { adminRoleLabel, type AdminRole } from '../../api/types';
 
-const NAV_ITEMS = [
-  { to: '/admin/pedidos', label: 'Pedidos', Icon: ReceiptIcon },
-  { to: '/admin/negocios', label: 'Negocios', Icon: StoreIcon },
-  { to: '/admin/productos', label: 'Productos', Icon: BoxIcon },
-  { to: '/admin/categorias', label: 'Categorías', Icon: TagIcon },
-  { to: '/admin/lugares', label: 'Provincias y municipios', Icon: MapPinIcon },
-] as const;
+/** Qué ve cada rol en el panel. El owner es el único que ve el historial. */
+const NAV_ITEMS: { to: string; label: string; Icon: typeof BoxIcon; roles: AdminRole[] }[] = [
+  {
+    to: '/admin/dashboard',
+    label: 'Dashboard',
+    Icon: ChartIcon,
+    roles: ['owner', 'staff', 'business_admin'],
+  },
+  {
+    to: '/admin/pedidos',
+    label: 'Pedidos',
+    Icon: ReceiptIcon,
+    roles: ['owner', 'staff', 'business_admin', 'worker'],
+  },
+  { to: '/admin/negocios', label: 'Negocios', Icon: StoreIcon, roles: ['owner', 'staff'] },
+  {
+    to: '/admin/productos',
+    label: 'Productos',
+    Icon: BoxIcon,
+    roles: ['owner', 'staff', 'business_admin', 'worker'],
+  },
+  { to: '/admin/categorias', label: 'Categorías', Icon: TagIcon, roles: ['owner', 'staff'] },
+  {
+    to: '/admin/lugares',
+    label: 'Provincias y municipios',
+    Icon: MapPinIcon,
+    roles: ['owner', 'staff'],
+  },
+  {
+    to: '/admin/usuarios',
+    label: 'Usuarios',
+    Icon: UsersIcon,
+    roles: ['owner', 'business_admin'],
+  },
+  { to: '/admin/historial', label: 'Historial', Icon: HistoryIcon, roles: ['owner'] },
+];
 
 export function AdminLayout() {
   const navigate = useNavigate();
@@ -70,26 +102,20 @@ export function AdminLayout() {
         <div>
           <h1 className="page-title">Panel Nexoo</h1>
           <p className="admin-header-meta">
-            <span className={`admin-role-badge ${admin.role}`}>
-              {admin.role === 'owner' ? 'Propietario' : 'Administrador'}
-            </span>
+            <span className={`admin-role-badge ${admin.role}`}>{adminRoleLabel(admin.role)}</span>
             <span>{user.email}</span>
           </p>
         </div>
       </div>
 
       <nav className="admin-nav" aria-label="Secciones del panel">
-        {NAV_ITEMS.map(({ to, label, Icon }) => (
-          <NavLink key={to} to={to} className={linkClass}>
-            <Icon size={17} />
-            <span>{label}</span>
-          </NavLink>
-        ))}
-        {admin.role === 'owner' && (
-          <NavLink to="/admin/usuarios" className={linkClass}>
-            <UsersIcon size={17} />
-            <span>Usuarios</span>
-          </NavLink>
+        {NAV_ITEMS.filter((item) => item.roles.includes(admin.role)).map(
+          ({ to, label, Icon }) => (
+            <NavLink key={to} to={to} className={linkClass}>
+              <Icon size={17} />
+              <span>{label}</span>
+            </NavLink>
+          ),
         )}
       </nav>
 

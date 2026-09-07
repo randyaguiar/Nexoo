@@ -116,6 +116,7 @@ export function CheckoutPage() {
         ...form,
         notes: form.notes.trim() || undefined,
         items: cart.lines.map((l) => ({ productId: l.product.id, quantity: l.quantity })),
+        cartToken: cart.cartToken,
       });
       cart.clear();
       navigate(`/pedido/${order.id}`);
