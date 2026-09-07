@@ -9,14 +9,25 @@ export function AdminLayout() {
   const { user, loading } = useAuth();
   // undefined mientras se resuelve; null = la sesión no pertenece a un admin.
   const [admin, setAdmin] = useState<AdminUser | null | undefined>(undefined);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) {
       setAdmin(null);
       return;
     }
+
     setAdmin(undefined);
-    void api.admin.currentAdmin().then(setAdmin);
+    setError(null);
+    // Sin catch, un fallo aquí (migración sin aplicar, policy que bloquea la
+    // lectura) dejaba el panel en "Cargando…" para siempre y sin explicación.
+    api.admin
+      .currentAdmin()
+      .then(setAdmin)
+      .catch((e: Error) => {
+        setError(e.message);
+        setAdmin(null);
+      });
   }, [user]);
 
   if (loading || (user && admin === undefined)) {
@@ -38,7 +49,16 @@ export function AdminLayout() {
     return (
       <div className="empty-state">
         <h3>Esta cuenta no tiene acceso al panel</h3>
-        <p>Entra con un usuario administrador o vuelve al catálogo.</p>
+        {error ? (
+          <p className="alert error" role="alert">
+            {error}
+          </p>
+        ) : (
+          <p>
+            La sesión de <strong>{user.email}</strong> no tiene una fila en <code>admins</code>.
+            Entra con un usuario administrador o vuelve al catálogo.
+          </p>
+        )}
         <button type="button" className="secondary" onClick={() => void logout()}>
           Cerrar sesión
         </button>{' '}
