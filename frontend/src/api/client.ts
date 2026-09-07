@@ -2,6 +2,7 @@ import type { PostgrestError } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import type {
   ActivityEntry,
+  CartReservation,
   AdminRole,
   AdminUser,
   AdminUserInput,
@@ -370,6 +371,22 @@ export const api = {
     const { data, error } = await supabase.rpc('create_order', { payload: input });
     if (error) fail(error);
     return { id: data as string };
+  },
+
+  /**
+   * Deja las reservas del carrito igual a su contenido y renueva la caducidad.
+   * Con la lista vacía suelta lo que tuviera reservado.
+   */
+  async reserveCart(
+    cartToken: string,
+    items: { productId: string; quantity: number }[],
+  ): Promise<CartReservation> {
+    const { data, error } = await supabase.rpc('reserve_cart', {
+      p_cart_token: cartToken,
+      p_items: items,
+    });
+    if (error) fail(error);
+    return data as CartReservation;
   },
 
   async getOrder(id: string): Promise<Order> {

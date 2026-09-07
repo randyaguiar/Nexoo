@@ -126,6 +126,19 @@ export interface Order {
   items: OrderItem[];
 }
 
+/** Lo que el carrito tiene reservado de un producto frente a lo que pidió. */
+export interface CartReservationItem {
+  productId: string;
+  requested: number;
+  reserved: number;
+}
+
+export interface CartReservation {
+  /** Momento en que la reserva caduca, o null si el carrito está vacío. */
+  expiresAt: string | null;
+  items: CartReservationItem[];
+}
+
 export interface CreateOrderInput {
   buyerName: string;
   buyerEmail: string;
@@ -137,6 +150,8 @@ export interface CreateOrderInput {
   recipientAddress: string;
   notes?: string;
   items: { productId: string; quantity: number }[];
+  /** Token del carrito: sus propias reservas no le hacen de tope al confirmar. */
+  cartToken?: string;
 }
 
 export interface BusinessInput {
