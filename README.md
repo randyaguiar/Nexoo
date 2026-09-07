@@ -4,138 +4,115 @@ Plataforma para comprar en negocios locales de Cuba (Pinar del Río y La Habana)
 entregar el pedido a un familiar en la isla. El pago se coordina manualmente por Zelle fuera de la
 plataforma.
 
-## Estructura
+## Arquitectura
+
+Supabase es el backend completo: no hay servidor propio que mantener.
 
 ```
-backend/Nexoo.Api   API REST en .NET 8 (minimal APIs + EF Core / Npgsql)
-frontend            React + Vite + TypeScript
-db                  schema.sql y seed.sql para PostgreSQL / Supabase
+frontend             React + Vite + TypeScript (se despliega en Vercel)
+supabase/migrations  esquema, RLS y funciones SQL
+supabase/functions   Edge Function del aviso por email
+supabase/seed.sql    catálogo de prueba
 ```
+
+| Pieza                    | Cómo se resuelve                                            |
+| ------------------------ | ----------------------------------------------------------- |
+| Catálogo público         | `supabase-js` → PostgREST, con policies de solo lectura      |
+| Creación de pedidos      | RPC `create_order()` (`SECURITY DEFINER`)                    |
+| Confirmación del pedido  | RPC `get_order()`, el id del pedido actúa como token         |
+| Login y panel admin      | Supabase Auth + policies contra la tabla `admins`            |
+| Aviso de pedido al admin | Database Webhook → Edge Function `notify-new-order` → Resend |
 
 ## Modelo de datos
 
-| Tabla         | Campos clave                                                                                     |
-| ------------- | ------------------------------------------------------------------------------------------------ |
-| `businesses`  | name, description, province, municipality, contact_phone, active                                   |
-| `products`    | business_id, name, price_usd, photo_url, available                                                 |
-| `orders`      | buyer_*, recipient_* (nombre, teléfono, provincia, municipio, dirección), business_id, status, total_usd |
-| `order_items` | order_id, product_id, product_name, quantity, unit_price                                           |
+| Tabla         | Campos clave                                                                                             |
+| ------------- | --------------------------------------------------------------------------------------------------------- |
+| `businesses`  | name, description, province, municipality, contact_phone, active                                            |
+| `products`    | business_id, name, price_usd, photo_url, available                                                          |
+| `orders`      | buyer_*, recipient_* (nombre, teléfono, provincia, municipio, dirección), business_id, status, total_usd     |
+| `order_items` | order_id, product_id, product_name, quantity, unit_price                                                    |
+| `admins`      | user_id (→ `auth.users`), email                                                                             |
 
-`province` y `status` se guardan como texto (`PinarDelRio`, `LaHabana`; `PendingPayment`, `Paid`,
-`PaidToBusiness`, `Delivered`, `Cancelled`) para que añadir valores no requiera migrar datos.
+`province` (`PinarDelRio`, `LaHabana`) y `status` (`PendingPayment`, `Paid`, `PaidToBusiness`,
+`Delivered`, `Cancelled`) son texto con `CHECK`: añadir valores no requiere migrar datos.
 
-## API
+## Reglas de negocio y por qué viven en la base de datos
 
-Público:
+El comprador es anónimo, así que **no puede escribir en `orders`**: no hay policy de insert para el
+rol `anon`. El checkout llama a `create_order(payload jsonb)`, que:
 
-- `GET /api/catalog/businesses?province=PinarDelRio` — negocios activos, filtrables por provincia
-- `GET /api/catalog/businesses/{id}` — negocio + productos disponibles
-- `POST /api/orders` — crea el pedido en estado `PendingPayment`
-- `GET /api/orders/{id}` — confirmación del pedido (el id actúa como token de acceso)
+- resuelve nombre y precio de cada producto **desde la tabla**, nunca desde el cliente (si no, se
+  podría enviar `total_usd = 0`);
+- rechaza pedidos que mezclen negocios, porque cada negocio se paga por separado;
+- suma las líneas repetidas del mismo producto y valida cantidades entre 1 y 100;
+- rechaza productos no disponibles o de negocios desactivados.
 
-Admin (requiere `Authorization: Bearer <token>`):
-
-- `POST /api/admin/login` — devuelve un JWT
-- `GET|POST|PUT|DELETE /api/admin/businesses[/{id}]`
-- `GET|POST|PUT|DELETE /api/admin/products[/{id}]` (`?businessId=` para filtrar)
-- `GET /api/admin/orders[?status=Paid]`, `PUT /api/admin/orders/{id}/status`
-
-Reglas de negocio aplicadas en el servidor:
-
-- Un pedido solo puede contener productos de **un** negocio (cada negocio se paga por separado).
-- Los precios y el total se calculan desde la base de datos, nunca desde el cliente.
-- Negocios y productos con historial de pedidos no se borran: se desactivan.
+Negocios y productos con pedidos asociados no se pueden borrar (lo impide la clave foránea): el
+panel los desactiva en su lugar.
 
 ## Puesta en marcha
 
-### Base de datos
+### 1. Supabase
 
-Con Supabase o cualquier PostgreSQL:
-
-```bash
-psql "$DATABASE_URL" -f db/schema.sql
-psql "$DATABASE_URL" -f db/seed.sql   # datos de prueba (opcional)
-```
-
-En desarrollo la API también crea el esquema al arrancar (`EnsureCreated`) y siembra dos negocios
-de prueba.
-
-### Backend
+Crea el proyecto y aplica las migraciones con la CLI:
 
 ```bash
-cd backend/Nexoo.Api
-dotnet user-secrets init
-dotnet user-secrets set "ConnectionStrings:Postgres" "Host=...;Database=...;Username=...;Password=..."
-dotnet user-secrets set "Admin:Email" "admin@nexoo.app"
-dotnet user-secrets set "Admin:Password" "..."
-dotnet user-secrets set "Admin:JwtSigningKey" "<mínimo 32 caracteres>"
-dotnet run
+supabase link --project-ref <tu-project-ref>
+supabase db push
+psql "$DATABASE_URL" -f supabase/seed.sql   # catálogo de prueba (opcional)
 ```
 
-La API escucha en `http://localhost:5080` y expone Swagger en `/swagger` en desarrollo.
+Alternativa sin CLI: pega el contenido de `supabase/migrations/*.sql` (en orden) y de
+`supabase/seed.sql` en el SQL editor del panel.
 
-Para las notificaciones por email al admin, configura la sección `Smtp`. Sin SMTP configurado el
-correo se escribe en el log y el pedido se crea igual.
+### 2. Usuario admin
 
-### Frontend
+Authentication → Users → *Add user* (email + contraseña, confirmado). Después, en el SQL editor:
+
+```sql
+insert into public.admins (user_id, email)
+select id, email from auth.users where email = 'admin@nexoo.app';
+```
+
+Sin esa fila el usuario puede iniciar sesión pero no ve ningún pedido: `is_admin()` devuelve falso.
+
+### 3. Aviso por email (opcional)
+
+```bash
+supabase functions deploy notify-new-order
+supabase secrets set RESEND_API_KEY=... ADMIN_EMAIL=admin@nexoo.app FROM_EMAIL='Nexoo <pedidos@tudominio.com>'
+```
+
+Luego Database → Webhooks → nuevo webhook: tabla `public.orders`, evento `INSERT`, tipo *Supabase
+Edge Functions*, función `notify-new-order`. Sin `RESEND_API_KEY` el pedido se crea igual y el aviso
+solo queda en el log de la función.
+
+### 4. Frontend
 
 ```bash
 cd frontend
-cp .env.example .env
+cp .env.example .env    # rellena VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY
 npm install
 npm run dev
 ```
 
-Abre `http://localhost:5173`. El panel admin está en `/admin/login`.
+`http://localhost:5173`; el panel está en `/admin/login`.
 
-## Despliegue (Vercel + Render + Supabase)
+> La `anon key` es pública por diseño y va en el bundle: quien protege los datos es RLS, no la
+> clave. La `service_role` key **nunca** debe aparecer en el frontend.
 
-Vercel no ejecuta .NET, así que el sitio se reparte en tres piezas. Una vez conectadas, cada push a
-la rama desplegada actualiza el frontend y el backend automáticamente.
+### 5. Vercel
 
-### 1. Base de datos — Supabase
-
-Crea el proyecto y copia la *connection string* (Project settings → Database → Connection string →
-URI). La API crea las tablas al arrancar; si prefieres hacerlo a mano, ejecuta `db/schema.sql` y
-`db/seed.sql` desde el SQL editor.
-
-### 2. API — Render (Docker)
-
-El repositorio incluye `backend/Dockerfile` y `render.yaml`. En Render: *New → Blueprint*, apunta al
-repositorio y rellena las variables:
-
-| Variable               | Valor                                                            |
-| ---------------------- | ---------------------------------------------------------------- |
-| `DATABASE_URL`         | la URI `postgresql://…` de Supabase                               |
-| `CORS_ALLOWED_ORIGINS` | dominios de Vercel separados por coma                             |
-| `Admin__Email`         | email del admin                                                   |
-| `Admin__Password`      | contraseña del admin                                              |
-| `Admin__JwtSigningKey` | la genera Render automáticamente                                  |
-| `Smtp__*`              | opcional; sin SMTP el aviso de pedido solo se escribe en el log   |
-
-`SeedSampleData=true` siembra los negocios de prueba también en producción (útil para la primera
-revisión; quítalo después). La API queda en `https://nexoo-api.onrender.com`.
-
-> El plan gratuito de Render duerme el servicio tras unos minutos de inactividad: la primera carga
-> del catálogo puede tardar ~30 s.
-
-### 3. Frontend — Vercel
-
-*New Project* → el repositorio → **Root Directory: `frontend`**. Vercel detecta Vite; `vercel.json`
-ya incluye el rewrite a `index.html` que necesitan las rutas del router. Variables de entorno:
-
-| Variable           | Valor                                     |
-| ------------------ | ----------------------------------------- |
-| `VITE_API_URL`     | `https://nexoo-api.onrender.com`          |
-| `VITE_ZELLE_EMAIL` | el email/usuario de Zelle de Nexoo        |
-
-Después añade el dominio de Vercel a `CORS_ALLOWED_ORIGINS` en Render y vuelve a desplegar la API.
+*New Project* → el repositorio → **Root Directory: `frontend`**. Vercel detecta Vite y `vercel.json`
+ya trae el rewrite a `index.html` que necesitan las rutas del router. Añade `VITE_SUPABASE_URL`,
+`VITE_SUPABASE_ANON_KEY` y `VITE_ZELLE_EMAIL` como variables de entorno. A partir de ahí cada push
+publica solo.
 
 ## Flujo end-to-end
 
 Catálogo → filtro por provincia → negocio → carrito (un solo negocio) → checkout con datos del
-comprador y del destinatario → pedido `Pendiente de pago` + instrucciones de Zelle + email al
-admin → panel admin lista el pedido y cambia su estado.
+comprador y del destinatario → pedido `Pendiente de pago` + instrucciones de Zelle + email al admin
+→ el panel lista el pedido y cambia su estado.
 
 ## Fuera del alcance del MVP
 

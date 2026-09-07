@@ -1,6 +1,6 @@
--- Sample catalog data for the Nexoo MVP (same content as the API's DataSeeder).
+-- Datos de prueba del catálogo Nexoo (un negocio por provincia de lanzamiento).
 
-insert into businesses (id, name, description, province, municipality, contact_phone, active)
+insert into public.businesses (id, name, description, province, municipality, contact_phone, active)
 values
   ('11111111-1111-1111-1111-111111111111',
    'Dulcería La Vueltabajera',
@@ -12,7 +12,7 @@ values
    'LaHabana', 'Centro Habana', '+53 5 555 9876', true)
 on conflict (id) do nothing;
 
-insert into products (id, business_id, name, description, price_usd, photo_url, available)
+insert into public.products (id, business_id, name, description, price_usd, photo_url, available)
 values
   ('aaaaaaa1-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111',
    'Cake de chocolate (8 porciones)', 'Cake húmedo de chocolate con cobertura de ganache.', 22.00,

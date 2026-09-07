@@ -33,8 +33,10 @@ export function AdminOrdersPage() {
 
   const changeStatus = async (order: Order, status: OrderStatus) => {
     try {
-      const updated = await api.admin.updateOrderStatus(order.id, status);
-      setOrders((current) => current.map((o) => (o.id === updated.id ? updated : o)));
+      await api.admin.updateOrderStatus(order.id, status);
+      setOrders((current) =>
+        current.map((o) => (o.id === order.id ? { ...o, status } : o)),
+      );
     } catch (e) {
       setError((e as Error).message);
     }

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ApiError, adminToken, api } from '../../api/client';
+import { api } from '../../api/client';
 
 export function AdminLoginPage() {
   const navigate = useNavigate();
@@ -15,15 +15,10 @@ export function AdminLoginPage() {
     setError(null);
 
     try {
-      const result = await api.admin.login(email, password);
-      adminToken.set(result.token);
+      await api.admin.login(email, password);
       navigate('/admin/pedidos', { replace: true });
     } catch (e) {
-      setError(
-        e instanceof ApiError && e.status === 401
-          ? 'Credenciales inválidas.'
-          : (e as Error).message,
-      );
+      setError((e as Error).message);
       setSubmitting(false);
     }
   };

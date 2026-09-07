@@ -1,3 +1,5 @@
+import type { PostgrestError } from '@supabase/supabase-js';
+import { supabase } from './supabase';
 import type {
   Business,
   BusinessDetail,
@@ -10,141 +12,294 @@ import type {
   Province,
 } from './types';
 
-const BASE_URL: string = import.meta.env.VITE_API_URL ?? 'http://localhost:5080';
-
-const TOKEN_KEY = 'nexoo.admin.token';
-
-export const adminToken = {
-  get: (): string | null => localStorage.getItem(TOKEN_KEY),
-  set: (token: string): void => localStorage.setItem(TOKEN_KEY, token),
-  clear: (): void => localStorage.removeItem(TOKEN_KEY),
-};
-
-export class ApiError extends Error {
-  readonly status: number;
-
-  constructor(message: string, status: number) {
-    super(message);
-    this.name = 'ApiError';
-    this.status = status;
-  }
+/** Las tablas usan snake_case; la UI trabaja en camelCase. */
+interface BusinessRow {
+  id: string;
+  name: string;
+  description: string | null;
+  province: Province;
+  municipality: string;
+  contact_phone: string | null;
+  active: boolean;
 }
 
-interface RequestOptions {
-  method?: string;
-  body?: unknown;
-  auth?: boolean;
+interface ProductRow {
+  id: string;
+  business_id: string;
+  name: string;
+  description: string | null;
+  price_usd: number;
+  photo_url: string | null;
+  available: boolean;
 }
 
-async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { method = 'GET', body, auth = false } = options;
-  const headers: Record<string, string> = {};
+const toBusiness = (row: BusinessRow, productCount: number): Business => ({
+  id: row.id,
+  name: row.name,
+  description: row.description,
+  province: row.province,
+  municipality: row.municipality,
+  contactPhone: row.contact_phone,
+  active: row.active,
+  productCount,
+});
 
-  if (body !== undefined) {
-    headers['Content-Type'] = 'application/json';
-  }
+const toProduct = (row: ProductRow): Product => ({
+  id: row.id,
+  businessId: row.business_id,
+  name: row.name,
+  description: row.description,
+  priceUsd: Number(row.price_usd),
+  photoUrl: row.photo_url,
+  available: row.available,
+});
 
-  if (auth) {
-    const token = adminToken.get();
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
-    }
-  }
-
-  const response = await fetch(`${BASE_URL}${path}`, {
-    method,
-    headers,
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-
-  if (response.status === 401 && auth) {
-    adminToken.clear();
-    throw new ApiError('Sesión expirada. Inicia sesión de nuevo.', 401);
-  }
-
-  if (!response.ok) {
-    throw new ApiError(await readErrorMessage(response), response.status);
-  }
-
-  if (response.status === 204) {
-    return undefined as T;
-  }
-
-  return (await response.json()) as T;
+interface OrderItemRow {
+  id: string;
+  product_id: string;
+  product_name: string;
+  quantity: number;
+  unit_price: number;
 }
 
-async function readErrorMessage(response: Response): Promise<string> {
-  try {
-    const payload = (await response.json()) as {
-      error?: string;
-      title?: string;
-      errors?: Record<string, string[]>;
-    };
+interface OrderRow {
+  id: string;
+  buyer_name: string;
+  buyer_email: string;
+  buyer_phone: string;
+  recipient_name: string;
+  recipient_phone: string;
+  recipient_province: Province;
+  recipient_municipality: string;
+  recipient_address: string;
+  business_id: string;
+  status: OrderStatus;
+  total_usd: number;
+  notes: string | null;
+  created_at: string;
+  businesses: { name: string } | null;
+  order_items: OrderItemRow[];
+}
 
-    if (payload.errors) {
-      const first = Object.values(payload.errors)[0];
-      if (first?.length) {
-        return first[0];
-      }
-    }
+const toOrder = (row: OrderRow): Order => ({
+  id: row.id,
+  buyerName: row.buyer_name,
+  buyerEmail: row.buyer_email,
+  buyerPhone: row.buyer_phone,
+  recipientName: row.recipient_name,
+  recipientPhone: row.recipient_phone,
+  recipientProvince: row.recipient_province,
+  recipientMunicipality: row.recipient_municipality,
+  recipientAddress: row.recipient_address,
+  businessId: row.business_id,
+  businessName: row.businesses?.name ?? '',
+  status: row.status,
+  totalUsd: Number(row.total_usd),
+  notes: row.notes,
+  createdAt: row.created_at,
+  items: row.order_items
+    .map((i) => ({
+      id: i.id,
+      productId: i.product_id,
+      productName: i.product_name,
+      quantity: i.quantity,
+      unitPrice: Number(i.unit_price),
+    }))
+    .sort((a, b) => a.productName.localeCompare(b.productName, 'es')),
+});
 
-    return payload.error ?? payload.title ?? `Error ${response.status}`;
-  } catch {
-    return `Error ${response.status}`;
-  }
+const toRow = (input: ProductInput) => ({
+  business_id: input.businessId,
+  name: input.name,
+  description: input.description,
+  price_usd: input.priceUsd,
+  photo_url: input.photoUrl,
+  available: input.available,
+});
+
+const toBusinessRow = (input: BusinessInput) => ({
+  name: input.name,
+  description: input.description,
+  province: input.province,
+  municipality: input.municipality,
+  contact_phone: input.contactPhone,
+  active: input.active,
+});
+
+/**
+ * Las excepciones de las funciones RPC llegan con el mensaje en español que
+ * levanta Postgres; el resto se traduce a un texto genérico.
+ */
+function fail(error: PostgrestError): never {
+  throw new Error(error.message || 'No se pudo completar la operación.');
 }
 
 export const api = {
-  listBusinesses: (province?: Province | null) =>
-    request<Business[]>(`/api/catalog/businesses${province ? `?province=${province}` : ''}`),
+  async listBusinesses(province?: Province | null): Promise<Business[]> {
+    let query = supabase
+      .from('business_catalog')
+      .select('id, name, description, province, municipality, contact_phone, active, product_count')
+      .eq('active', true)
+      .order('name');
 
-  getBusiness: (id: string) => request<BusinessDetail>(`/api/catalog/businesses/${id}`),
+    if (province) {
+      query = query.eq('province', province);
+    }
 
-  createOrder: (input: CreateOrderInput) =>
-    request<Order>('/api/orders', { method: 'POST', body: input }),
+    const { data, error } = await query;
+    if (error) fail(error);
 
-  getOrder: (id: string) => request<Order>(`/api/orders/${id}`),
+    return (data ?? []).map((row) => toBusiness(row as BusinessRow, Number(row.product_count)));
+  },
+
+  async getBusiness(id: string): Promise<BusinessDetail> {
+    const { data, error } = await supabase
+      .from('businesses')
+      .select(
+        'id, name, description, province, municipality, contact_phone, active, products(*)',
+      )
+      .eq('id', id)
+      .maybeSingle();
+
+    if (error) fail(error);
+    if (!data) throw new Error('Negocio no encontrado.');
+
+    const products = ((data.products ?? []) as ProductRow[])
+      .map(toProduct)
+      .sort((a, b) => a.name.localeCompare(b.name, 'es'));
+
+    return { business: toBusiness(data as unknown as BusinessRow, products.length), products };
+  },
+
+  async createOrder(input: CreateOrderInput): Promise<{ id: string }> {
+    // El total y los precios los calcula create_order() en la base de datos.
+    const { data, error } = await supabase.rpc('create_order', { payload: input });
+    if (error) fail(error);
+    return { id: data as string };
+  },
+
+  async getOrder(id: string): Promise<Order> {
+    const { data, error } = await supabase.rpc('get_order', { p_order_id: id });
+    if (error) fail(error);
+    if (!data) throw new Error('Pedido no encontrado.');
+    return data as Order;
+  },
 
   admin: {
-    login: (email: string, password: string) =>
-      request<{ token: string; expiresAt: string }>('/api/admin/login', {
-        method: 'POST',
-        body: { email, password },
-      }),
+    async login(email: string, password: string): Promise<void> {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (!error) return;
 
-    listBusinesses: () => request<Business[]>('/api/admin/businesses', { auth: true }),
+      // Supabase responde en inglés; el único caso frecuente vale la pena traducirlo.
+      throw new Error(
+        error.message === 'Invalid login credentials'
+          ? 'Credenciales inválidas.'
+          : error.message,
+      );
+    },
 
-    createBusiness: (input: BusinessInput) =>
-      request<Business>('/api/admin/businesses', { method: 'POST', body: input, auth: true }),
+    async logout(): Promise<void> {
+      await supabase.auth.signOut();
+    },
 
-    updateBusiness: (id: string, input: BusinessInput) =>
-      request<Business>(`/api/admin/businesses/${id}`, { method: 'PUT', body: input, auth: true }),
+    async listBusinesses(): Promise<Business[]> {
+      const { data, error } = await supabase
+        .from('businesses')
+        .select(
+          'id, name, description, province, municipality, contact_phone, active, products(count)',
+        )
+        .order('name');
 
-    deleteBusiness: (id: string) =>
-      request<void>(`/api/admin/businesses/${id}`, { method: 'DELETE', auth: true }),
+      if (error) fail(error);
 
-    listProducts: (businessId?: string) =>
-      request<Product[]>(`/api/admin/products${businessId ? `?businessId=${businessId}` : ''}`, {
-        auth: true,
-      }),
+      return (data ?? []).map((row) => {
+        const counts = row.products as unknown as { count: number }[] | null;
+        return toBusiness(row as unknown as BusinessRow, counts?.[0]?.count ?? 0);
+      });
+    },
 
-    createProduct: (input: ProductInput) =>
-      request<Product>('/api/admin/products', { method: 'POST', body: input, auth: true }),
+    async createBusiness(input: BusinessInput): Promise<void> {
+      const { error } = await supabase.from('businesses').insert(toBusinessRow(input));
+      if (error) fail(error);
+    },
 
-    updateProduct: (id: string, input: ProductInput) =>
-      request<Product>(`/api/admin/products/${id}`, { method: 'PUT', body: input, auth: true }),
+    async updateBusiness(id: string, input: BusinessInput): Promise<void> {
+      const { error } = await supabase.from('businesses').update(toBusinessRow(input)).eq('id', id);
+      if (error) fail(error);
+    },
 
-    deleteProduct: (id: string) =>
-      request<void>(`/api/admin/products/${id}`, { method: 'DELETE', auth: true }),
+    /** Si el negocio tiene pedidos, la FK impide borrarlo y se desactiva en su lugar. */
+    async deleteBusiness(id: string): Promise<{ deactivated: boolean }> {
+      const { error } = await supabase.from('businesses').delete().eq('id', id);
+      if (!error) return { deactivated: false };
 
-    listOrders: (status?: OrderStatus | null) =>
-      request<Order[]>(`/api/admin/orders${status ? `?status=${status}` : ''}`, { auth: true }),
+      if (error.code !== '23503') fail(error);
 
-    updateOrderStatus: (id: string, status: OrderStatus) =>
-      request<Order>(`/api/admin/orders/${id}/status`, {
-        method: 'PUT',
-        body: { status },
-        auth: true,
-      }),
+      const { error: deactivateError } = await supabase
+        .from('businesses')
+        .update({ active: false })
+        .eq('id', id);
+      if (deactivateError) fail(deactivateError);
+
+      return { deactivated: true };
+    },
+
+    async listProducts(businessId?: string): Promise<Product[]> {
+      let query = supabase.from('products').select('*').order('name');
+      if (businessId) {
+        query = query.eq('business_id', businessId);
+      }
+
+      const { data, error } = await query;
+      if (error) fail(error);
+      return (data ?? []).map((row) => toProduct(row as ProductRow));
+    },
+
+    async createProduct(input: ProductInput): Promise<void> {
+      const { error } = await supabase.from('products').insert(toRow(input));
+      if (error) fail(error);
+    },
+
+    async updateProduct(id: string, input: ProductInput): Promise<void> {
+      const { error } = await supabase.from('products').update(toRow(input)).eq('id', id);
+      if (error) fail(error);
+    },
+
+    /** Si el producto aparece en algún pedido se marca no disponible en vez de borrarse. */
+    async deleteProduct(id: string): Promise<{ deactivated: boolean }> {
+      const { error } = await supabase.from('products').delete().eq('id', id);
+      if (!error) return { deactivated: false };
+
+      if (error.code !== '23503') fail(error);
+
+      const { error: deactivateError } = await supabase
+        .from('products')
+        .update({ available: false })
+        .eq('id', id);
+      if (deactivateError) fail(deactivateError);
+
+      return { deactivated: true };
+    },
+
+    async listOrders(status?: OrderStatus | null): Promise<Order[]> {
+      let query = supabase
+        .from('orders')
+        .select('*, businesses(name), order_items(*)')
+        .order('created_at', { ascending: false });
+
+      if (status) {
+        query = query.eq('status', status);
+      }
+
+      const { data, error } = await query;
+      if (error) fail(error);
+
+      return ((data ?? []) as unknown as OrderRow[]).map(toOrder);
+    },
+
+    async updateOrderStatus(id: string, status: OrderStatus): Promise<void> {
+      const { error } = await supabase.from('orders').update({ status }).eq('id', id);
+      if (error) fail(error);
+    },
   },
 };
