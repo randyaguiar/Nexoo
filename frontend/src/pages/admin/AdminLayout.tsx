@@ -40,7 +40,7 @@ export function AdminLayout() {
 
   return (
     <>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="admin-header">
         <h1 className="page-title">Panel Nexoo</h1>
         <button type="button" className="secondary" onClick={() => void logout()}>
           Cerrar sesión

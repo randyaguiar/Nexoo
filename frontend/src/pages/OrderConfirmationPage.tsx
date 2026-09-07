@@ -31,11 +31,28 @@ export function OrderConfirmationPage() {
     };
   }, [id]);
 
-  if (error) return <div className="alert error">{error}</div>;
-  if (!order) return <p className="empty">Cargando pedido…</p>;
+  if (error)
+    return (
+      <div className="alert error" role="alert">
+        {error}
+      </div>
+    );
+  if (!order)
+    return (
+      <div aria-busy="true">
+        <div className="skeleton" style={{ height: 28, width: '45%', marginBottom: 12 }} />
+        <div className="skeleton" style={{ height: 120 }} />
+      </div>
+    );
 
   return (
     <>
+      <ol className="steps">
+        <li>Carrito</li>
+        <li>Datos de entrega</li>
+        <li className="current">Pago</li>
+      </ol>
+
       <h1 className="page-title">¡Pedido recibido!</h1>
       <p className="page-subtitle">
         Referencia <strong>{shortRef(order.id)}</strong> · <StatusBadge status={order.status} />
@@ -78,7 +95,7 @@ export function OrderConfirmationPage() {
         </div>
       </div>
 
-      <div className="card" style={{ marginTop: 20 }}>
+      <div className="card" style={{ marginTop: 'var(--space-5)' }}>
         <h3>Entrega en Cuba</h3>
         <p>
           {order.recipientName} · {order.recipientPhone}
@@ -89,8 +106,10 @@ export function OrderConfirmationPage() {
         </p>
       </div>
 
-      <p style={{ marginTop: 20 }}>
-        <Link to="/">Volver al catálogo</Link>
+      <p style={{ marginTop: 'var(--space-5)' }}>
+        <Link className="button secondary" to="/">
+          Volver al catálogo
+        </Link>
       </p>
     </>
   );
