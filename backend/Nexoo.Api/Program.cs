@@ -12,13 +12,17 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.Configure<AdminOptions>(builder.Configuration.GetSection(AdminOptions.SectionName));
 builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection(SmtpOptions.SectionName));
 
-var connectionString = builder.Configuration.GetConnectionString("Postgres")
-    ?? throw new InvalidOperationException("Missing connection string 'Postgres'.");
+var connectionString = DatabaseConnectionString.Resolve(builder.Configuration);
 
 builder.Services.AddDbContext<NexooDbContext>(options => options.UseNpgsql(connectionString));
 builder.Services.AddScoped<IOrderNotifier, SmtpOrderNotifier>();
 
 var adminOptions = builder.Configuration.GetSection(AdminOptions.SectionName).Get<AdminOptions>() ?? new AdminOptions();
+if (string.IsNullOrWhiteSpace(adminOptions.Email) || string.IsNullOrWhiteSpace(adminOptions.Password))
+{
+    throw new InvalidOperationException("Admin:Email and Admin:Password must be configured.");
+}
+
 if (adminOptions.JwtSigningKey.Length < 32)
 {
     throw new InvalidOperationException("Admin:JwtSigningKey must be at least 32 characters.");
@@ -43,7 +47,11 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddAuthorizationBuilder()
     .AddPolicy(AdminEndpoints.AdminPolicy, policy => policy.RequireRole("admin"));
 
-var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+// CORS_ALLOWED_ORIGINS is a comma-separated list, so a single env var covers the
+// production hosts (Vercel domain + preview domains) without JSON config.
+var allowedOrigins = builder.Configuration["CORS_ALLOWED_ORIGINS"]
+        ?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+    ?? builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
     ?? ["http://localhost:5173"];
 
 builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy

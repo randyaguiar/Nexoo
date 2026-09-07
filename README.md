@@ -88,6 +88,49 @@ npm run dev
 
 Abre `http://localhost:5173`. El panel admin está en `/admin/login`.
 
+## Despliegue (Vercel + Render + Supabase)
+
+Vercel no ejecuta .NET, así que el sitio se reparte en tres piezas. Una vez conectadas, cada push a
+la rama desplegada actualiza el frontend y el backend automáticamente.
+
+### 1. Base de datos — Supabase
+
+Crea el proyecto y copia la *connection string* (Project settings → Database → Connection string →
+URI). La API crea las tablas al arrancar; si prefieres hacerlo a mano, ejecuta `db/schema.sql` y
+`db/seed.sql` desde el SQL editor.
+
+### 2. API — Render (Docker)
+
+El repositorio incluye `backend/Dockerfile` y `render.yaml`. En Render: *New → Blueprint*, apunta al
+repositorio y rellena las variables:
+
+| Variable               | Valor                                                            |
+| ---------------------- | ---------------------------------------------------------------- |
+| `DATABASE_URL`         | la URI `postgresql://…` de Supabase                               |
+| `CORS_ALLOWED_ORIGINS` | dominios de Vercel separados por coma                             |
+| `Admin__Email`         | email del admin                                                   |
+| `Admin__Password`      | contraseña del admin                                              |
+| `Admin__JwtSigningKey` | la genera Render automáticamente                                  |
+| `Smtp__*`              | opcional; sin SMTP el aviso de pedido solo se escribe en el log   |
+
+`SeedSampleData=true` siembra los negocios de prueba también en producción (útil para la primera
+revisión; quítalo después). La API queda en `https://nexoo-api.onrender.com`.
+
+> El plan gratuito de Render duerme el servicio tras unos minutos de inactividad: la primera carga
+> del catálogo puede tardar ~30 s.
+
+### 3. Frontend — Vercel
+
+*New Project* → el repositorio → **Root Directory: `frontend`**. Vercel detecta Vite; `vercel.json`
+ya incluye el rewrite a `index.html` que necesitan las rutas del router. Variables de entorno:
+
+| Variable           | Valor                                     |
+| ------------------ | ----------------------------------------- |
+| `VITE_API_URL`     | `https://nexoo-api.onrender.com`          |
+| `VITE_ZELLE_EMAIL` | el email/usuario de Zelle de Nexoo        |
+
+Después añade el dominio de Vercel a `CORS_ALLOWED_ORIGINS` en Render y vuelve a desplegar la API.
+
 ## Flujo end-to-end
 
 Catálogo → filtro por provincia → negocio → carrito (un solo negocio) → checkout con datos del
