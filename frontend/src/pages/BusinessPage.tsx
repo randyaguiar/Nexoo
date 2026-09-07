@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../api/client';
-import { provinceLabel, type BusinessDetail } from '../api/types';
+import type { BusinessDetail } from '../api/types';
 import { useCart } from '../cart/CartContext';
 import { Money } from '../components/Money';
 import { SkeletonGrid } from '../components/Skeleton';
@@ -69,11 +69,20 @@ export function BusinessPage() {
       <Link to="/" className="back-link">
         <span aria-hidden="true">←</span> Volver al catálogo
       </Link>
-      <h1 className="page-title">{business.name}</h1>
-      <p className="page-subtitle">
-        <span className="tag">{provinceLabel(business.province)}</span> {business.municipality}
-        {business.description ? ` — ${business.description}` : ''}
-      </p>
+      <div className="business-heading">
+        {business.logoUrl && (
+          <img className="business-logo" src={business.logoUrl} alt={`Logo de ${business.name}`} />
+        )}
+        <div>
+          <h1 className="page-title">{business.name}</h1>
+          <p className="page-subtitle">
+            <span className="tag">{business.provinceName}</span>{' '}
+            {business.categoryName && <span className="tag">{business.categoryName}</span>}{' '}
+            {business.municipality}
+            {business.description ? ` — ${business.description}` : ''}
+          </p>
+        </div>
+      </div>
 
       {blocked && (
         <div className="alert info" role="status">

@@ -2,20 +2,27 @@ import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
 import { SkeletonGrid } from '../components/Skeleton';
-import { PROVINCES, provinceLabel, type Business, type Province } from '../api/types';
-
-function isProvince(value: string | null): value is Province {
-  return PROVINCES.some((p) => p.value === value);
-}
+import type { Business, Category, ProvinceRef } from '../api/types';
 
 export function CatalogPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const provinceParam = searchParams.get('provincia');
-  const province = isProvince(provinceParam) ? provinceParam : null;
+  const province = searchParams.get('provincia');
+  const categoryId = searchParams.get('categoria');
 
+  const [provinces, setProvinces] = useState<ProvinceRef[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    Promise.all([api.listProvinces(), api.listCategories()])
+      .then(([provinceList, categoryList]) => {
+        setProvinces(provinceList);
+        setCategories(categoryList);
+      })
+      .catch((e: Error) => setError(e.message));
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -23,7 +30,7 @@ export function CatalogPage() {
     setError(null);
 
     api
-      .listBusinesses(province)
+      .listBusinesses(province, categoryId)
       .then((data) => {
         if (!cancelled) setBusinesses(data);
       })
@@ -37,10 +44,16 @@ export function CatalogPage() {
     return () => {
       cancelled = true;
     };
-  }, [province]);
+  }, [province, categoryId]);
 
-  const selectProvince = (value: Province | null) => {
-    setSearchParams(value ? { provincia: value } : {});
+  const setFilter = (key: 'provincia' | 'categoria', value: string | null) => {
+    const next = new URLSearchParams(searchParams);
+    if (value) {
+      next.set(key, value);
+    } else {
+      next.delete(key);
+    }
+    setSearchParams(next);
   };
 
   return (
@@ -74,21 +87,43 @@ export function CatalogPage() {
         <button
           type="button"
           className={`chip ${province === null ? 'active' : ''}`}
-          onClick={() => selectProvince(null)}
+          onClick={() => setFilter('provincia', null)}
         >
           Todas las provincias
         </button>
-        {PROVINCES.map((p) => (
+        {provinces.map((p) => (
           <button
-            key={p.value}
+            key={p.code}
             type="button"
-            className={`chip ${province === p.value ? 'active' : ''}`}
-            onClick={() => selectProvince(p.value)}
+            className={`chip ${province === p.code ? 'active' : ''}`}
+            onClick={() => setFilter('provincia', p.code)}
           >
-            {p.label}
+            {p.name}
           </button>
         ))}
       </div>
+
+      {categories.length > 0 && (
+        <div className="filters" role="group" aria-label="Filtrar por categoría">
+          <button
+            type="button"
+            className={`chip ${categoryId === null ? 'active' : ''}`}
+            onClick={() => setFilter('categoria', null)}
+          >
+            Todas las categorías
+          </button>
+          {categories.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              className={`chip ${categoryId === c.id ? 'active' : ''}`}
+              onClick={() => setFilter('categoria', c.id)}
+            >
+              {c.name}
+            </button>
+          ))}
+        </div>
+      )}
 
       {error && (
         <div className="alert error" role="alert">
@@ -101,10 +136,10 @@ export function CatalogPage() {
 
         {!loading && !error && businesses.length === 0 && (
           <div className="empty-state">
-            <h3>Todavía no hay negocios en esta provincia</h3>
-            <p>Estamos sumando nuevos negocios cada semana. Prueba con otra provincia.</p>
-            <button type="button" className="secondary" onClick={() => selectProvince(null)}>
-              Ver todas las provincias
+            <h3>Todavía no hay negocios con estos filtros</h3>
+            <p>Estamos sumando nuevos negocios cada semana. Prueba con otra provincia o categoría.</p>
+            <button type="button" className="secondary" onClick={() => setSearchParams({})}>
+              Ver todos los negocios
             </button>
           </div>
         )}
@@ -117,7 +152,19 @@ export function CatalogPage() {
                 to={`/negocios/${business.id}`}
                 className="card business-card"
               >
-                <span className="tag">{provinceLabel(business.province)}</span>
+                <div className="business-card-head">
+                  {business.logoUrl && (
+                    <img
+                      className="business-logo"
+                      src={business.logoUrl}
+                      alt={`Logo de ${business.name}`}
+                    />
+                  )}
+                  <div>
+                    <span className="tag">{business.provinceName}</span>
+                    {business.categoryName && <span className="tag">{business.categoryName}</span>}
+                  </div>
+                </div>
                 <h3>{business.name}</h3>
                 <p className="meta">{business.municipality}</p>
                 {business.description && <p>{business.description}</p>}

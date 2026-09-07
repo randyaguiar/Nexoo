@@ -1,18 +1,28 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../api/client';
-import { PROVINCES, provinceLabel, type Business, type BusinessInput } from '../../api/types';
+import type {
+  Business,
+  BusinessInput,
+  Category,
+  Municipality,
+  ProvinceRef,
+} from '../../api/types';
 
 const emptyForm: BusinessInput = {
   name: '',
   description: '',
-  province: 'PinarDelRio',
-  municipality: '',
+  logoUrl: '',
+  municipalityId: '',
+  categoryId: null,
   contactPhone: '',
   active: true,
 };
 
 export function AdminBusinessesPage() {
   const [businesses, setBusinesses] = useState<Business[]>([]);
+  const [provinces, setProvinces] = useState<ProvinceRef[]>([]);
+  const [municipalities, setMunicipalities] = useState<Municipality[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [form, setForm] = useState<BusinessInput>(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -34,6 +44,21 @@ export function AdminBusinessesPage() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    Promise.all([api.listProvinces(), api.listMunicipalities(), api.listCategories()])
+      .then(([provinceList, municipalityList, categoryList]) => {
+        setProvinces(provinceList);
+        setMunicipalities(municipalityList);
+        setCategories(categoryList);
+      })
+      .catch((e: Error) => setError(e.message));
+  }, []);
+
+  const selectedMunicipality = municipalities.find((m) => m.id === form.municipalityId);
+  // Sin municipio elegido se muestran los de la primera provincia disponible.
+  const provinceCode = selectedMunicipality?.provinceCode ?? provinces[0]?.code ?? '';
+  const provinceMunicipalities = municipalities.filter((m) => m.provinceCode === provinceCode);
+
   const set = <K extends keyof BusinessInput>(key: K, value: BusinessInput[K]) =>
     setForm((current) => ({ ...current, [key]: value }));
 
@@ -44,12 +69,23 @@ export function AdminBusinessesPage() {
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (!form.municipalityId) {
+      setError('Selecciona un municipio para el negocio.');
+      return;
+    }
+    const payload: BusinessInput = {
+      ...form,
+      logoUrl: form.logoUrl?.trim() ? form.logoUrl.trim() : null,
+      description: form.description?.trim() ? form.description.trim() : null,
+      contactPhone: form.contactPhone?.trim() ? form.contactPhone.trim() : null,
+    };
     try {
       if (editingId) {
-        await api.admin.updateBusiness(editingId, form);
+        await api.admin.updateBusiness(editingId, payload);
       } else {
-        await api.admin.createBusiness(form);
+        await api.admin.createBusiness(payload);
       }
+      setError(null);
       reset();
       await load();
     } catch (e) {
@@ -62,8 +98,9 @@ export function AdminBusinessesPage() {
     setForm({
       name: business.name,
       description: business.description ?? '',
-      province: business.province,
-      municipality: business.municipality,
+      logoUrl: business.logoUrl ?? '',
+      municipalityId: business.municipalityId ?? '',
+      categoryId: business.categoryId,
       contactPhone: business.contactPhone ?? '',
       active: business.active,
     });
@@ -114,27 +151,72 @@ export function AdminBusinessesPage() {
             <label htmlFor="province">Provincia</label>
             <select
               id="province"
-              value={form.province}
-              onChange={(e) => set('province', e.target.value as BusinessInput['province'])}
+              value={provinceCode}
+              onChange={(e) => {
+                const first = municipalities.find((m) => m.provinceCode === e.target.value);
+                set('municipalityId', first?.id ?? '');
+              }}
             >
-              {PROVINCES.map((p) => (
-                <option key={p.value} value={p.value}>
-                  {p.label}
+              {provinces.map((p) => (
+                <option key={p.code} value={p.code}>
+                  {p.name}
                 </option>
               ))}
             </select>
           </div>
           <div className="field">
-            <label htmlFor="municipality">Municipio</label>
-            <input
-              id="municipality"
+            <label htmlFor="municipalityId">Municipio</label>
+            <select
+              id="municipalityId"
               required
-              maxLength={120}
-              value={form.municipality}
-              onChange={(e) => set('municipality', e.target.value)}
+              value={form.municipalityId}
+              onChange={(e) => set('municipalityId', e.target.value)}
+            >
+              <option value="">Selecciona un municipio</option>
+              {provinceMunicipalities.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div className="field-row">
+          <div className="field">
+            <label htmlFor="categoryId">Categoría</label>
+            <select
+              id="categoryId"
+              value={form.categoryId ?? ''}
+              onChange={(e) => set('categoryId', e.target.value || null)}
+            >
+              <option value="">Sin categoría</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field">
+            <label htmlFor="logoUrl">URL del logo</label>
+            <input
+              id="logoUrl"
+              type="url"
+              maxLength={1000}
+              placeholder="https://…"
+              value={form.logoUrl ?? ''}
+              onChange={(e) => set('logoUrl', e.target.value)}
             />
           </div>
         </div>
+        {form.logoUrl?.trim() && (
+          <img
+            className="business-logo"
+            src={form.logoUrl}
+            alt="Vista previa del logo"
+            style={{ marginBottom: 12 }}
+          />
+        )}
         <div className="field">
           <label htmlFor="description">Descripción</label>
           <textarea
@@ -175,7 +257,9 @@ export function AdminBusinessesPage() {
           <table>
             <thead>
               <tr>
+                <th>Logo</th>
                 <th>Nombre</th>
+                <th>Categoría</th>
                 <th>Ubicación</th>
                 <th>Teléfono</th>
                 <th>Productos</th>
@@ -186,9 +270,21 @@ export function AdminBusinessesPage() {
             <tbody>
               {businesses.map((business) => (
                 <tr key={business.id}>
-                  <td>{business.name}</td>
                   <td>
-                    {provinceLabel(business.province)}, {business.municipality}
+                    {business.logoUrl ? (
+                      <img
+                        className="business-logo small"
+                        src={business.logoUrl}
+                        alt={`Logo de ${business.name}`}
+                      />
+                    ) : (
+                      '—'
+                    )}
+                  </td>
+                  <td>{business.name}</td>
+                  <td>{business.categoryName ?? '—'}</td>
+                  <td>
+                    {business.provinceName}, {business.municipality}
                   </td>
                   <td>{business.contactPhone ?? '—'}</td>
                   <td>{business.productCount}</td>

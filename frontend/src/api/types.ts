@@ -1,12 +1,43 @@
-export type Province = 'PinarDelRio' | 'LaHabana';
+/** Código de provincia tal como está en la tabla `provinces` (p. ej. 'LaHabana'). */
+export type Province = string;
 
-export const PROVINCES: { value: Province; label: string }[] = [
-  { value: 'PinarDelRio', label: 'Pinar del Río' },
-  { value: 'LaHabana', label: 'La Habana' },
-];
+export interface ProvinceRef {
+  code: Province;
+  name: string;
+  active: boolean;
+}
 
-export const provinceLabel = (province: Province): string =>
-  PROVINCES.find((p) => p.value === province)?.label ?? province;
+export interface Municipality {
+  id: string;
+  provinceCode: Province;
+  name: string;
+  active: boolean;
+}
+
+export interface Category {
+  id: string;
+  name: string;
+  description: string | null;
+  active: boolean;
+}
+
+export interface ProvinceInput {
+  code: Province;
+  name: string;
+  active: boolean;
+}
+
+export interface MunicipalityInput {
+  provinceCode: Province;
+  name: string;
+  active: boolean;
+}
+
+export interface CategoryInput {
+  name: string;
+  description: string | null;
+  active: boolean;
+}
 
 export type OrderStatus =
   | 'PendingPayment'
@@ -34,8 +65,13 @@ export interface Business {
   id: string;
   name: string;
   description: string | null;
+  logoUrl: string | null;
   province: Province;
+  provinceName: string;
+  municipalityId: string | null;
   municipality: string;
+  categoryId: string | null;
+  categoryName: string | null;
   contactPhone: string | null;
   active: boolean;
   productCount: number;
@@ -72,6 +108,7 @@ export interface Order {
   recipientName: string;
   recipientPhone: string;
   recipientProvince: Province;
+  recipientProvinceName: string;
   recipientMunicipality: string;
   recipientAddress: string;
   businessId: string;
@@ -99,8 +136,10 @@ export interface CreateOrderInput {
 export interface BusinessInput {
   name: string;
   description: string | null;
-  province: Province;
-  municipality: string;
+  logoUrl: string | null;
+  /** La provincia y el nombre del municipio se derivan de este id en la base de datos. */
+  municipalityId: string;
+  categoryId: string | null;
   contactPhone: string | null;
   active: boolean;
 }

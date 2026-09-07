@@ -7,12 +7,18 @@ import type {
   Business,
   BusinessDetail,
   BusinessInput,
+  Category,
+  CategoryInput,
   CreateOrderInput,
+  Municipality,
+  MunicipalityInput,
   Order,
   OrderStatus,
   Product,
   ProductInput,
   Province,
+  ProvinceInput,
+  ProvinceRef,
 } from './types';
 
 /** Las tablas usan snake_case; la UI trabaja en camelCase. */
@@ -20,8 +26,13 @@ interface BusinessRow {
   id: string;
   name: string;
   description: string | null;
+  logo_url: string | null;
   province: Province;
+  province_name: string | null;
+  municipality_id: string | null;
   municipality: string;
+  category_id: string | null;
+  category_name: string | null;
   contact_phone: string | null;
   active: boolean;
 }
@@ -40,8 +51,13 @@ const toBusiness = (row: BusinessRow, productCount: number): Business => ({
   id: row.id,
   name: row.name,
   description: row.description,
+  logoUrl: row.logo_url,
   province: row.province,
+  provinceName: row.province_name ?? row.province,
+  municipalityId: row.municipality_id,
   municipality: row.municipality,
+  categoryId: row.category_id,
+  categoryName: row.category_name,
   contactPhone: row.contact_phone,
   active: row.active,
   productCount,
@@ -81,6 +97,7 @@ interface OrderRow {
   notes: string | null;
   created_at: string;
   businesses: { name: string } | null;
+  provinces: { name: string } | null;
   order_items: OrderItemRow[];
 }
 
@@ -92,6 +109,7 @@ const toOrder = (row: OrderRow): Order => ({
   recipientName: row.recipient_name,
   recipientPhone: row.recipient_phone,
   recipientProvince: row.recipient_province,
+  recipientProvinceName: row.provinces?.name ?? row.recipient_province,
   recipientMunicipality: row.recipient_municipality,
   recipientAddress: row.recipient_address,
   businessId: row.business_id,
@@ -120,13 +138,49 @@ const toRow = (input: ProductInput) => ({
   available: input.available,
 });
 
+// province y municipality los rellena el trigger businesses_sync_municipality
+// a partir de municipality_id, así que no se envían desde el cliente.
 const toBusinessRow = (input: BusinessInput) => ({
   name: input.name,
   description: input.description,
-  province: input.province,
-  municipality: input.municipality,
+  logo_url: input.logoUrl,
+  municipality_id: input.municipalityId,
+  category_id: input.categoryId,
   contact_phone: input.contactPhone,
   active: input.active,
+});
+
+interface ProvinceRow {
+  code: string;
+  name: string;
+  active: boolean;
+}
+
+interface MunicipalityRow {
+  id: string;
+  province_code: string;
+  name: string;
+  active: boolean;
+}
+
+interface CategoryRow {
+  id: string;
+  name: string;
+  description: string | null;
+  active: boolean;
+}
+
+const toCategoryRow = (input: CategoryInput) => ({
+  name: input.name,
+  description: input.description,
+  active: input.active,
+});
+
+const toMunicipality = (row: MunicipalityRow): Municipality => ({
+  id: row.id,
+  provinceCode: row.province_code,
+  name: row.name,
+  active: row.active,
 });
 
 interface AdminRow {
@@ -178,15 +232,63 @@ async function invokeManageAdmins(body: Record<string, unknown>): Promise<void> 
 }
 
 export const api = {
-  async listBusinesses(province?: Province | null): Promise<Business[]> {
+  async listProvinces(): Promise<ProvinceRef[]> {
+    const { data, error } = await supabase
+      .from('provinces')
+      .select('code, name, active')
+      .order('name');
+
+    if (error) fail(error);
+    return ((data ?? []) as ProvinceRow[]).map((row) => ({
+      code: row.code,
+      name: row.name,
+      active: row.active,
+    }));
+  },
+
+  async listMunicipalities(province?: Province | null): Promise<Municipality[]> {
+    let query = supabase
+      .from('municipalities')
+      .select('id, province_code, name, active')
+      .order('name');
+
+    if (province) {
+      query = query.eq('province_code', province);
+    }
+
+    const { data, error } = await query;
+    if (error) fail(error);
+    return ((data ?? []) as MunicipalityRow[]).map(toMunicipality);
+  },
+
+  async listCategories(): Promise<Category[]> {
+    const { data, error } = await supabase
+      .from('categories')
+      .select('id, name, description, active')
+      .order('name');
+
+    if (error) fail(error);
+    return (data ?? []) as CategoryRow[];
+  },
+
+  async listBusinesses(
+    province?: Province | null,
+    categoryId?: string | null,
+  ): Promise<Business[]> {
     let query = supabase
       .from('business_catalog')
-      .select('id, name, description, province, municipality, contact_phone, active, product_count')
+      .select(
+        'id, name, description, logo_url, province, province_name, municipality_id, municipality, category_id, category_name, contact_phone, active, product_count',
+      )
       .eq('active', true)
       .order('name');
 
     if (province) {
       query = query.eq('province', province);
+    }
+
+    if (categoryId) {
+      query = query.eq('category_id', categoryId);
     }
 
     const { data, error } = await query;
@@ -197,19 +299,23 @@ export const api = {
 
   async getBusiness(id: string): Promise<BusinessDetail> {
     const { data, error } = await supabase
-      .from('businesses')
-      .select(
-        'id, name, description, province, municipality, contact_phone, active, products(*)',
-      )
+      .from('business_catalog')
+      .select('id, name, description, logo_url, province, province_name, municipality_id, municipality, category_id, category_name, contact_phone, active, product_count')
       .eq('id', id)
       .maybeSingle();
 
     if (error) fail(error);
     if (!data) throw new Error('Negocio no encontrado.');
 
-    const products = ((data.products ?? []) as ProductRow[])
-      .map(toProduct)
-      .sort((a, b) => a.name.localeCompare(b.name, 'es'));
+    const { data: productRows, error: productsError } = await supabase
+      .from('products')
+      .select('*')
+      .eq('business_id', id)
+      .order('name');
+
+    if (productsError) fail(productsError);
+
+    const products = ((productRows ?? []) as ProductRow[]).map(toProduct);
 
     return { business: toBusiness(data as unknown as BusinessRow, products.length), products };
   },
@@ -252,7 +358,7 @@ export const api = {
     async listMyOrders(): Promise<Order[]> {
       const { data, error } = await supabase
         .from('orders')
-        .select('*, businesses(name), order_items(*)')
+        .select('*, businesses(name), provinces(name), order_items(*)')
         .order('created_at', { ascending: false });
 
       if (error) fail(error);
@@ -263,18 +369,86 @@ export const api = {
   admin: {
     async listBusinesses(): Promise<Business[]> {
       const { data, error } = await supabase
-        .from('businesses')
-        .select(
-          'id, name, description, province, municipality, contact_phone, active, products(count)',
-        )
+        .from('business_catalog')
+        .select('id, name, description, logo_url, province, province_name, municipality_id, municipality, category_id, category_name, contact_phone, active, product_count')
         .order('name');
 
       if (error) fail(error);
 
-      return (data ?? []).map((row) => {
-        const counts = row.products as unknown as { count: number }[] | null;
-        return toBusiness(row as unknown as BusinessRow, counts?.[0]?.count ?? 0);
-      });
+      return (data ?? []).map((row) =>
+        toBusiness(row as unknown as BusinessRow, Number(row.product_count)),
+      );
+    },
+
+    async createProvince(input: ProvinceInput): Promise<void> {
+      const { error } = await supabase
+        .from('provinces')
+        .insert({ code: input.code, name: input.name, active: input.active });
+      if (error) fail(error);
+    },
+
+    async updateProvince(code: string, input: ProvinceInput): Promise<void> {
+      const { error } = await supabase
+        .from('provinces')
+        .update({ code: input.code, name: input.name, active: input.active })
+        .eq('code', code);
+      if (error) fail(error);
+    },
+
+    /** Si la provincia ya tiene negocios o pedidos, la FK impide borrarla. */
+    async deleteProvince(code: string): Promise<void> {
+      const { error } = await supabase.from('provinces').delete().eq('code', code);
+      if (error) {
+        if (error.code === '23503') {
+          throw new Error(
+            'La provincia tiene negocios o pedidos asociados. Desactívala en lugar de borrarla.',
+          );
+        }
+        fail(error);
+      }
+    },
+
+    async createMunicipality(input: MunicipalityInput): Promise<void> {
+      const { error } = await supabase
+        .from('municipalities')
+        .insert({ province_code: input.provinceCode, name: input.name, active: input.active });
+      if (error) fail(error);
+    },
+
+    async updateMunicipality(id: string, input: MunicipalityInput): Promise<void> {
+      const { error } = await supabase
+        .from('municipalities')
+        .update({ province_code: input.provinceCode, name: input.name, active: input.active })
+        .eq('id', id);
+      if (error) fail(error);
+    },
+
+    async deleteMunicipality(id: string): Promise<void> {
+      const { error } = await supabase.from('municipalities').delete().eq('id', id);
+      if (error) {
+        if (error.code === '23503') {
+          throw new Error(
+            'El municipio tiene negocios asociados. Desactívalo en lugar de borrarlo.',
+          );
+        }
+        fail(error);
+      }
+    },
+
+    async createCategory(input: CategoryInput): Promise<void> {
+      const { error } = await supabase.from('categories').insert(toCategoryRow(input));
+      if (error) fail(error);
+    },
+
+    async updateCategory(id: string, input: CategoryInput): Promise<void> {
+      const { error } = await supabase.from('categories').update(toCategoryRow(input)).eq('id', id);
+      if (error) fail(error);
+    },
+
+    /** Los negocios de la categoría quedan sin categoría (on delete set null). */
+    async deleteCategory(id: string): Promise<void> {
+      const { error } = await supabase.from('categories').delete().eq('id', id);
+      if (error) fail(error);
     },
 
     async createBusiness(input: BusinessInput): Promise<void> {
@@ -343,7 +517,7 @@ export const api = {
     async listOrders(status?: OrderStatus | null): Promise<Order[]> {
       let query = supabase
         .from('orders')
-        .select('*, businesses(name), order_items(*)')
+        .select('*, businesses(name), provinces(name), order_items(*)')
         .order('created_at', { ascending: false });
 
       if (status) {
