@@ -130,9 +130,10 @@ export function BusinessPage() {
               <h3>{product.name}</h3>
               {product.description && <p className="meta">{product.description}</p>}
               <Money value={product.priceUsd} />
+              {product.stock === 0 && <p className="meta">Agotado</p>}
               <button
                 type="button"
-                disabled={blocked}
+                disabled={blocked || product.stock === 0}
                 aria-label={`Agregar ${product.name} al carrito`}
                 onClick={() => {
                   cart.addProduct(product, business);
