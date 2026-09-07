@@ -25,9 +25,9 @@ export function Layout() {
           <Link to="/" className="brand" aria-label="Nexoo — inicio">
             <Logo />
             <span className="brand-tagline">
-              Compra aquí,
+              Cerca de los tuyos,
               <br />
-              entregamos allá
+              aunque estés lejos.
             </span>
           </Link>
           <nav className="header-nav" aria-label="Principal">
