@@ -4,3 +4,7 @@ project_id = "nexoo"
 # El webhook de la base de datos llama la función con la service role key,
 # no con un JWT de usuario.
 verify_jwt = false
+
+[functions.manage-admins]
+# La llama el panel con el JWT del admin; la función exige además el rol owner.
+verify_jwt = true

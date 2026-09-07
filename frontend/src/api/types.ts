@@ -26,6 +26,10 @@ export const ORDER_STATUSES: { value: OrderStatus; label: string }[] = [
 export const orderStatusLabel = (status: OrderStatus): string =>
   ORDER_STATUSES.find((s) => s.value === status)?.label ?? status;
 
+/** Referencia corta y legible del pedido; la Edge Function del aviso usa la misma. */
+export const shortRef = (id: string): string =>
+  id.replace(/-/g, '').slice(0, 8).toUpperCase();
+
 export interface Business {
   id: string;
   name: string;
@@ -108,4 +112,28 @@ export interface ProductInput {
   priceUsd: number;
   photoUrl: string | null;
   available: boolean;
+}
+
+export type AdminRole = 'owner' | 'staff';
+
+export const ADMIN_ROLES: { value: AdminRole; label: string }[] = [
+  { value: 'owner', label: 'Owner' },
+  { value: 'staff', label: 'Staff' },
+];
+
+export const adminRoleLabel = (role: AdminRole): string =>
+  ADMIN_ROLES.find((r) => r.value === role)?.label ?? role;
+
+export interface AdminUser {
+  userId: string;
+  email: string;
+  role: AdminRole;
+  createdAt: string;
+}
+
+export interface AdminUserInput {
+  email: string;
+  /** Vacío: se envía una invitación por email en lugar de fijar la contraseña. */
+  password: string;
+  role: AdminRole;
 }

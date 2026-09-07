@@ -1,6 +1,9 @@
 import type { PostgrestError } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import type {
+  AdminRole,
+  AdminUser,
+  AdminUserInput,
   Business,
   BusinessDetail,
   BusinessInput,
@@ -126,12 +129,52 @@ const toBusinessRow = (input: BusinessInput) => ({
   active: input.active,
 });
 
+interface AdminRow {
+  user_id: string;
+  email: string;
+  role: AdminRole;
+  created_at: string;
+}
+
+const toAdminUser = (row: AdminRow): AdminUser => ({
+  userId: row.user_id,
+  email: row.email,
+  role: row.role,
+  createdAt: row.created_at,
+});
+
 /**
  * Las excepciones de las funciones RPC llegan con el mensaje en español que
  * levanta Postgres; el resto se traduce a un texto genérico.
  */
+const AUTH_ERRORS: Record<string, string> = {
+  'Invalid login credentials': 'Credenciales inválidas.',
+  'User already registered': 'Ya existe una cuenta con ese email.',
+  'Email not confirmed': 'Confirma tu email antes de entrar.',
+};
+
+/** Supabase Auth responde en inglés; se traducen los casos frecuentes. */
+const translateAuthError = (message: string): string => AUTH_ERRORS[message] ?? message;
+
 function fail(error: PostgrestError): never {
   throw new Error(error.message || 'No se pudo completar la operación.');
+}
+
+/**
+ * La Edge Function devuelve el motivo en el cuerpo de la respuesta; supabase-js
+ * solo expone "Edge Function returned a non-2xx status code" en error.message.
+ */
+async function invokeManageAdmins(body: Record<string, unknown>): Promise<void> {
+  const { error } = await supabase.functions.invoke('manage-admins', { body });
+  if (!error) return;
+
+  const context: unknown = (error as { context?: unknown }).context;
+  if (context instanceof Response) {
+    const payload = (await context.clone().json().catch(() => null)) as { error?: string } | null;
+    if (payload?.error) throw new Error(payload.error);
+  }
+
+  throw new Error(error.message);
 }
 
 export const api = {
@@ -185,23 +228,39 @@ export const api = {
     return data as Order;
   },
 
-  admin: {
+  auth: {
+    /**
+     * Devuelve true si la cuenta queda lista para usarse. Con la confirmación de
+     * email activada en Supabase, el usuario debe abrir el enlace antes de entrar.
+     */
+    async register(email: string, password: string): Promise<{ needsConfirmation: boolean }> {
+      const { data, error } = await supabase.auth.signUp({ email, password });
+      if (error) throw new Error(translateAuthError(error.message));
+      return { needsConfirmation: data.session === null };
+    },
+
     async login(email: string, password: string): Promise<void> {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (!error) return;
-
-      // Supabase responde en inglés; el único caso frecuente vale la pena traducirlo.
-      throw new Error(
-        error.message === 'Invalid login credentials'
-          ? 'Credenciales inválidas.'
-          : error.message,
-      );
+      if (error) throw new Error(translateAuthError(error.message));
     },
 
     async logout(): Promise<void> {
       await supabase.auth.signOut();
     },
 
+    /** Los pedidos hechos con la sesión iniciada; los anónimos no aparecen aquí. */
+    async listMyOrders(): Promise<Order[]> {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('*, businesses(name), order_items(*)')
+        .order('created_at', { ascending: false });
+
+      if (error) fail(error);
+      return ((data ?? []) as unknown as OrderRow[]).map(toOrder);
+    },
+  },
+
+  admin: {
     async listBusinesses(): Promise<Business[]> {
       const { data, error } = await supabase
         .from('businesses')
@@ -300,6 +359,49 @@ export const api = {
     async updateOrderStatus(id: string, status: OrderStatus): Promise<void> {
       const { error } = await supabase.from('orders').update({ status }).eq('id', id);
       if (error) fail(error);
+    },
+
+    async currentAdmin(): Promise<AdminUser | null> {
+      const { data: auth } = await supabase.auth.getUser();
+      if (!auth.user) return null;
+
+      const { data, error } = await supabase
+        .from('admins')
+        .select('user_id, email, role, created_at')
+        .eq('user_id', auth.user.id)
+        .maybeSingle();
+
+      if (error) fail(error);
+      return data ? toAdminUser(data as AdminRow) : null;
+    },
+
+    async listUsers(): Promise<AdminUser[]> {
+      const { data, error } = await supabase
+        .from('admins')
+        .select('user_id, email, role, created_at')
+        .order('created_at');
+
+      if (error) fail(error);
+      return ((data ?? []) as AdminRow[]).map(toAdminUser);
+    },
+
+    /** Sin contraseña, Supabase envía una invitación al email. */
+    async inviteUser(input: AdminUserInput): Promise<void> {
+      await invokeManageAdmins({
+        action: 'invite',
+        email: input.email,
+        password: input.password || undefined,
+        role: input.role,
+      });
+    },
+
+    async setUserRole(userId: string, role: AdminRole): Promise<void> {
+      await invokeManageAdmins({ action: 'setRole', userId, role });
+    },
+
+    /** Revoca el acceso al panel; el usuario de auth se conserva. */
+    async removeUser(userId: string): Promise<void> {
+      await invokeManageAdmins({ action: 'remove', userId });
     },
   },
 };

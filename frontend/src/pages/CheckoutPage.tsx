@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { PROVINCES, type Province } from '../api/types';
+import { useAuth } from '../auth/AuthContext';
 import { useCart } from '../cart/CartContext';
 import { formatUsd } from '../components/Money';
 
@@ -32,7 +33,11 @@ const initialForm: FormState = {
 export function CheckoutPage() {
   const cart = useCart();
   const navigate = useNavigate();
-  const [form, setForm] = useState<FormState>(initialForm);
+  const { user } = useAuth();
+  const [form, setForm] = useState<FormState>(() => ({
+    ...initialForm,
+    buyerEmail: user?.email ?? '',
+  }));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -96,6 +101,15 @@ export function CheckoutPage() {
         <div>
           <div className="card" style={{ marginBottom: 'var(--space-5)' }}>
             <h3>Tus datos (comprador en EE.UU.)</h3>
+            {!user && (
+              <p className="field-hint" style={{ marginBottom: 'var(--space-4)' }}>
+                <Link to="/entrar" state={{ from: '/checkout' }}>
+                  Entra
+                </Link>{' '}
+                o <Link to="/registro">crea una cuenta</Link> para seguir este pedido desde «Mis
+                pedidos». También puedes continuar sin cuenta.
+              </p>
+            )}
             <div className="field">
               <label htmlFor="buyerName">Nombre completo</label>
               <input

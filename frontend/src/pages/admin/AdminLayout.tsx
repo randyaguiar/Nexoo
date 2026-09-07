@@ -1,40 +1,53 @@
 import { useEffect, useState } from 'react';
-import { NavLink, Navigate, Outlet, useNavigate } from 'react-router-dom';
+import { Link, NavLink, Navigate, Outlet, useNavigate } from 'react-router-dom';
 import { api } from '../../api/client';
-import { supabase } from '../../api/supabase';
-
-type SessionState = 'loading' | 'authenticated' | 'anonymous';
+import type { AdminUser } from '../../api/types';
+import { useAuth } from '../../auth/AuthContext';
 
 export function AdminLayout() {
   const navigate = useNavigate();
-  const [session, setSession] = useState<SessionState>('loading');
+  const { user, loading } = useAuth();
+  // undefined mientras se resuelve; null = la sesión no pertenece a un admin.
+  const [admin, setAdmin] = useState<AdminUser | null | undefined>(undefined);
 
   useEffect(() => {
-    // getSession lee el token persistido; onAuthStateChange cubre el logout y la
-    // expiración mientras el panel está abierto.
-    void supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session ? 'authenticated' : 'anonymous');
-    });
+    if (!user) {
+      setAdmin(null);
+      return;
+    }
+    setAdmin(undefined);
+    void api.admin.currentAdmin().then(setAdmin);
+  }, [user]);
 
-    const { data: subscription } = supabase.auth.onAuthStateChange((_event, next) => {
-      setSession(next ? 'authenticated' : 'anonymous');
-    });
-
-    return () => subscription.subscription.unsubscribe();
-  }, []);
-
-  if (session === 'loading') {
+  if (loading || (user && admin === undefined)) {
     return <p className="empty">Cargando…</p>;
   }
 
-  if (session === 'anonymous') {
+  if (!user) {
     return <Navigate to="/admin/login" replace />;
   }
 
   const logout = async () => {
-    await api.admin.logout();
+    await api.auth.logout();
     navigate('/admin/login', { replace: true });
   };
+
+  // Una cuenta de comprador puede tener sesión iniciada: sin fila en `admins` no
+  // ve nada del panel (las policies ya lo impiden) y se le dice por qué.
+  if (!admin) {
+    return (
+      <div className="empty-state">
+        <h3>Esta cuenta no tiene acceso al panel</h3>
+        <p>Entra con un usuario administrador o vuelve al catálogo.</p>
+        <button type="button" className="secondary" onClick={() => void logout()}>
+          Cerrar sesión
+        </button>{' '}
+        <Link className="button" to="/">
+          Ir al catálogo
+        </Link>
+      </div>
+    );
+  }
 
   const linkClass = ({ isActive }: { isActive: boolean }) => (isActive ? 'active' : '');
 
@@ -57,6 +70,11 @@ export function AdminLayout() {
         <NavLink to="/admin/productos" className={linkClass}>
           Productos
         </NavLink>
+        {admin.role === 'owner' && (
+          <NavLink to="/admin/usuarios" className={linkClass}>
+            Usuarios
+          </NavLink>
+        )}
       </nav>
 
       <Outlet />

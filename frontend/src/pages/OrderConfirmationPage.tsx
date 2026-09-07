@@ -1,14 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../api/client';
-import { provinceLabel, type Order } from '../api/types';
+import { provinceLabel, shortRef, type Order } from '../api/types';
 import { formatUsd } from '../components/Money';
 import { StatusBadge } from '../components/StatusBadge';
 
 const ZELLE_EMAIL: string = import.meta.env.VITE_ZELLE_EMAIL ?? 'pagos@nexoo.app';
-
-/** Short human-friendly reference; must match the backend's SmtpOrderNotifier.ShortRef. */
-const shortRef = (id: string): string => id.replace(/-/g, '').slice(0, 8).toUpperCase();
 
 export function OrderConfirmationPage() {
   const { id = '' } = useParams();
