@@ -2,7 +2,7 @@
 
 Plataforma para comprar en negocios locales de Cuba (Pinar del Río y La Habana) desde EE.UU. y
 entregar el pedido a un familiar en la isla. El pago se coordina manualmente por Zelle fuera de la
-plataforma.
+plataforma
 
 ## Arquitectura
 
