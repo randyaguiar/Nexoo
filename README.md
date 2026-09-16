@@ -125,7 +125,8 @@ llegan a las direcciones del equipo del proyecto** y hay un tope de 2 por hora: 
 no para compradores reales. Con Resend (el mismo proveedor que usa `notify-new-order`):
 
 1. Resend → *Domains* → añade el dominio y publica los registros DNS hasta que quede *Verified*.
-2. Supabase → Project Settings → Authentication → **SMTP Settings** → *Enable Custom SMTP*:
+2. Supabase → Authentication → **Emails** → *SMTP Settings* (`/dashboard/project/_/auth/smtp`) →
+   activa *Enable Custom SMTP*:
 
    | Campo         | Valor                          |
    | ------------- | ------------------------------ |
@@ -136,10 +137,10 @@ no para compradores reales. Con Resend (el mismo proveedor que usa `notify-new-o
    | Username      | `resend`                       |
    | Password      | la API key de Resend           |
 
-3. Authentication → **Rate Limits** → sube el límite de emails (con SMTP propio deja de aplicar el
-   tope de pruebas).
+3. Authentication → **Rate Limits** → con SMTP propio el tope pasa a 30 usuarios nuevos por hora;
+   súbelo si hace falta.
 
-El asunto y el cuerpo se editan en Authentication → **Email Templates** → *Confirm signup*. Si se
+El asunto y el cuerpo se editan en Authentication → **Emails** → *Templates* → *Confirm signup*. Si se
 cambia la plantilla, hay que conservar `{{ .ConfirmationURL }}`; la variante con
 `{{ .TokenHash }}` también funciona porque `/auth/confirmado` canjea los dos formatos.
 
