@@ -106,7 +106,19 @@ desplegar `manage-admins`):
 supabase functions deploy manage-admins
 ```
 
-### 3. Aviso por email (opcional)
+### 3. URLs de confirmación de cuenta
+
+Authentication → **URL Configuration**:
+
+- **Site URL**: la URL pública del sitio (`https://tu-dominio.vercel.app`). El valor por defecto es
+  `http://localhost:3000`, y con él el enlace del correo de confirmación no lleva a ninguna parte.
+- **Redirect URLs**: añade `http://localhost:5173/auth/confirmado` y
+  `https://tu-dominio.vercel.app/auth/confirmado`.
+
+El registro pide la vuelta a `/auth/confirmado` (`EMAIL_CONFIRM_PATH` en `frontend/src/api/client.ts`);
+si esa URL no está en la lista, Supabase la ignora y usa el Site URL.
+
+### 4. Aviso por email (opcional)
 
 ```bash
 supabase functions deploy notify-new-order
@@ -117,7 +129,7 @@ Luego Database → Webhooks → nuevo webhook: tabla `public.orders`, evento `IN
 Edge Functions*, función `notify-new-order`. Sin `RESEND_API_KEY` el pedido se crea igual y el aviso
 solo queda en el log de la función.
 
-### 4. Frontend
+### 5. Frontend
 
 ```bash
 cd frontend
@@ -131,7 +143,7 @@ npm run dev
 > La `anon key` es pública por diseño y va en el bundle: quien protege los datos es RLS, no la
 > clave. La `service_role` key **nunca** debe aparecer en el frontend.
 
-### 5. Vercel
+### 6. Vercel
 
 *New Project* → el repositorio → **Root Directory: `frontend`**. Vercel detecta Vite y `vercel.json`
 ya trae el rewrite a `index.html` que necesitan las rutas del router. Añade `VITE_SUPABASE_URL`,

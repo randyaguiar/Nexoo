@@ -1,8 +1,10 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
+import { EMAIL_CONFIRM_PATH } from './api/client';
 import { AuthProvider } from './auth/AuthContext';
 import { CartProvider } from './cart/CartContext';
 import { Layout } from './components/Layout';
 import { AccountPage } from './pages/AccountPage';
+import { AuthConfirmPage } from './pages/AuthConfirmPage';
 import { BusinessPage } from './pages/BusinessPage';
 import { CartPage } from './pages/CartPage';
 import { CatalogPage } from './pages/CatalogPage';
@@ -36,6 +38,7 @@ export function App() {
 
           <Route path="entrar" element={<LoginPage />} />
           <Route path="registro" element={<RegisterPage />} />
+          <Route path={EMAIL_CONFIRM_PATH} element={<AuthConfirmPage />} />
           <Route path="mis-pedidos" element={<MyOrdersPage />} />
           <Route path="cuenta" element={<AccountPage />} />
 

@@ -1,4 +1,4 @@
-import type { PostgrestError } from '@supabase/supabase-js';
+import type { EmailOtpType, PostgrestError } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import type {
   ActivityEntry,
@@ -23,6 +23,12 @@ import type {
   ProvinceRef,
   UserProfile,
 } from './types';
+
+/**
+ * Ruta a la que vuelve el enlace de confirmación del email. Debe estar en
+ * Authentication → URL Configuration → Redirect URLs del proyecto de Supabase.
+ */
+export const EMAIL_CONFIRM_PATH = '/auth/confirmado';
 
 /** Las tablas usan snake_case; la UI trabaja en camelCase. */
 interface BusinessRow {
@@ -249,6 +255,10 @@ const AUTH_ERRORS: Record<string, string> = {
   'Invalid login credentials': 'Credenciales inválidas.',
   'User already registered': 'Ya existe una cuenta con ese email.',
   'Email not confirmed': 'Confirma tu email antes de entrar.',
+  'Email link is invalid or has expired':
+    'El enlace de confirmación no es válido o ya caducó. Pide uno nuevo creando la cuenta otra vez.',
+  'Token has expired or is invalid':
+    'El enlace de confirmación no es válido o ya caducó. Pide uno nuevo creando la cuenta otra vez.',
 };
 
 /** Supabase Auth responde en inglés; se traducen los casos frecuentes. */
@@ -412,9 +422,25 @@ export const api = {
      * email activada en Supabase, el usuario debe abrir el enlace antes de entrar.
      */
     async register(email: string, password: string): Promise<{ needsConfirmation: boolean }> {
-      const { data, error } = await supabase.auth.signUp({ email, password });
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        // Sin esto el enlace del correo vuelve al Site URL del proyecto, que por
+        // defecto es http://localhost:3000 y no lleva a ninguna parte.
+        options: { emailRedirectTo: `${window.location.origin}${EMAIL_CONFIRM_PATH}` },
+      });
       if (error) throw new Error(translateAuthError(error.message));
       return { needsConfirmation: data.session === null };
+    },
+
+    /**
+     * Canjea el `token_hash` del enlace de confirmación. Solo hace falta con la
+     * plantilla de correo que usa `{{ .TokenHash }}`; con la de por defecto la
+     * sesión ya llega en el hash de la URL y supabase-js la lee al arrancar.
+     */
+    async confirmEmail(tokenHash: string, type: EmailOtpType): Promise<void> {
+      const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type });
+      if (error) throw new Error(translateAuthError(error.message));
     },
 
     async login(email: string, password: string): Promise<void> {
