@@ -118,7 +118,32 @@ Authentication → **URL Configuration**:
 El registro pide la vuelta a `/auth/confirmado` (`EMAIL_CONFIRM_PATH` en `frontend/src/api/client.ts`);
 si esa URL no está en la lista, Supabase la ignora y usa el Site URL.
 
-### 4. Aviso por email (opcional)
+### 4. Remitente de los correos de Auth (SMTP propio)
+
+Sin SMTP propio los correos salen como *Supabase Auth &lt;noreply@mail.app.supabase.io&gt;*, **solo
+llegan a las direcciones del equipo del proyecto** y hay un tope de 2 por hora: sirve para probar,
+no para compradores reales. Con Resend (el mismo proveedor que usa `notify-new-order`):
+
+1. Resend → *Domains* → añade el dominio y publica los registros DNS hasta que quede *Verified*.
+2. Supabase → Project Settings → Authentication → **SMTP Settings** → *Enable Custom SMTP*:
+
+   | Campo         | Valor                          |
+   | ------------- | ------------------------------ |
+   | Sender email  | `no-reply@tudominio.com`       |
+   | Sender name   | `Nexoo`                        |
+   | Host          | `smtp.resend.com`              |
+   | Port          | `587`                          |
+   | Username      | `resend`                       |
+   | Password      | la API key de Resend           |
+
+3. Authentication → **Rate Limits** → sube el límite de emails (con SMTP propio deja de aplicar el
+   tope de pruebas).
+
+El asunto y el cuerpo se editan en Authentication → **Email Templates** → *Confirm signup*. Si se
+cambia la plantilla, hay que conservar `{{ .ConfirmationURL }}`; la variante con
+`{{ .TokenHash }}` también funciona porque `/auth/confirmado` canjea los dos formatos.
+
+### 5. Aviso por email (opcional)
 
 ```bash
 supabase functions deploy notify-new-order
@@ -129,7 +154,7 @@ Luego Database → Webhooks → nuevo webhook: tabla `public.orders`, evento `IN
 Edge Functions*, función `notify-new-order`. Sin `RESEND_API_KEY` el pedido se crea igual y el aviso
 solo queda en el log de la función.
 
-### 5. Frontend
+### 6. Frontend
 
 ```bash
 cd frontend
@@ -143,7 +168,7 @@ npm run dev
 > La `anon key` es pública por diseño y va en el bundle: quien protege los datos es RLS, no la
 > clave. La `service_role` key **nunca** debe aparecer en el frontend.
 
-### 6. Vercel
+### 7. Vercel
 
 *New Project* → el repositorio → **Root Directory: `frontend`**. Vercel detecta Vite y `vercel.json`
 ya trae el rewrite a `index.html` que necesitan las rutas del router. Añade `VITE_SUPABASE_URL`,
