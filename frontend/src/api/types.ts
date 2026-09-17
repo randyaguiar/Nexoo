@@ -93,6 +93,32 @@ export interface Product {
   stock: number;
 }
 
+/**
+ * Un producto visto desde el panel: incluye el coste y admite no tener precio
+ * todavía. El catálogo público nunca los trae, por eso `Product` no es nulable.
+ */
+export interface ProductPricing extends Omit<Product, 'priceUsd'> {
+  /** Null mientras la plataforma no le haya puesto precio: no se vende. */
+  priceUsd: number | null;
+  businessName: string;
+  /** Precio mayorista que declara el negocio. */
+  costUsd: number | null;
+  /** Precio ajustado a mano: un recálculo masivo no lo pisa salvo que se pida. */
+  priceIsManual: boolean;
+  /** Margen por defecto del negocio, con el que se calcula el precio sugerido. */
+  defaultMarkupPct: number;
+}
+
+/** Precio sugerido a partir del coste y el margen; null si no hay coste. */
+export const suggestedPrice = (costUsd: number | null, markupPct: number): number | null =>
+  costUsd === null ? null : Math.round(costUsd * (1 + markupPct / 100) * 100) / 100;
+
+/** Margen real en porcentaje sobre el coste; null si falta algún dato. */
+export const marginPct = (costUsd: number | null, priceUsd: number | null): number | null =>
+  costUsd === null || priceUsd === null || costUsd === 0
+    ? null
+    : ((priceUsd - costUsd) / costUsd) * 100;
+
 export interface BusinessDetail {
   business: Business;
   products: Product[];
@@ -170,7 +196,10 @@ export interface ProductInput {
   businessId: string;
   name: string;
   description: string | null;
-  priceUsd: number;
+  /** Solo lo manda un rol global; el negocio lo deja como está. */
+  priceUsd: number | null;
+  /** El precio mayorista que declara el negocio. */
+  costUsd: number | null;
   photoUrl: string | null;
   available: boolean;
   stock: number;

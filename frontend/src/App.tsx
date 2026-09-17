@@ -23,6 +23,7 @@ import { AdminLayout } from './pages/admin/AdminLayout';
 import { AdminLoginPage } from './pages/admin/AdminLoginPage';
 import { AdminOrdersPage } from './pages/admin/AdminOrdersPage';
 import { AdminPlacesPage } from './pages/admin/AdminPlacesPage';
+import { AdminPricingPage } from './pages/admin/AdminPricingPage';
 import { AdminProductsPage } from './pages/admin/AdminProductsPage';
 import { AdminUsersPage } from './pages/admin/AdminUsersPage';
 
@@ -54,6 +55,7 @@ export function App() {
             <Route path="productos" element={<AdminProductsPage />} />
             <Route path="categorias" element={<AdminCategoriesPage />} />
             <Route path="lugares" element={<AdminPlacesPage />} />
+            <Route path="precios" element={<AdminPricingPage />} />
             <Route path="solicitudes" element={<AdminApplicationsPage />} />
             <Route path="usuarios" element={<AdminUsersPage />} />
             <Route path="historial" element={<AdminActivityPage />} />

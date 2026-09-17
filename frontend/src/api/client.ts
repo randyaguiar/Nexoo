@@ -21,6 +21,7 @@ import type {
   Province,
   ProvinceInput,
   ProvinceRef,
+  ProductPricing,
   UserProfile,
 } from './types';
 import type {
@@ -62,6 +63,15 @@ interface ProductRow {
   stock: number | null;
 }
 
+/** Fila de `product_pricing`: lo mismo más el coste, que el público no ve. */
+interface ProductPricingRow extends Omit<ProductRow, 'price_usd'> {
+  price_usd: number | null;
+  business_name: string;
+  cost_usd: number | null;
+  price_is_manual: boolean;
+  default_markup_pct: number;
+}
+
 const toBusiness = (row: BusinessRow, productCount: number): Business => ({
   id: row.id,
   name: row.name,
@@ -89,6 +99,15 @@ const toProduct = (row: ProductRow): Product => ({
   photoUrl: row.photo_url,
   available: row.available,
   stock: Number(row.stock ?? 0),
+});
+
+const toProductPricing = (row: ProductPricingRow): ProductPricing => ({
+  ...toProduct({ ...row, price_usd: 0 }),
+  priceUsd: row.price_usd === null ? null : Number(row.price_usd),
+  businessName: row.business_name,
+  costUsd: row.cost_usd === null ? null : Number(row.cost_usd),
+  priceIsManual: row.price_is_manual,
+  defaultMarkupPct: Number(row.default_markup_pct),
 });
 
 interface OrderItemRow {
@@ -147,14 +166,19 @@ const toOrder = (row: OrderRow): Order => ({
     .sort((a, b) => a.productName.localeCompare(b.productName, 'es')),
 });
 
+/**
+ * `price_usd` solo viaja si viene informado: un trigger rechaza que un rol de
+ * negocio lo toque, y mandarlo aunque no cambie es pedir un error innecesario.
+ */
 const toRow = (input: ProductInput) => ({
   business_id: input.businessId,
   name: input.name,
   description: input.description,
-  price_usd: input.priceUsd,
+  cost_usd: input.costUsd,
   photo_url: input.photoUrl,
   available: input.available,
   stock: input.stock,
+  ...(input.priceUsd === null ? {} : { price_usd: input.priceUsd }),
 });
 
 /**
@@ -727,15 +751,20 @@ export const api = {
       return { deactivated: true };
     },
 
-    async listProducts(businessId?: string): Promise<Product[]> {
-      let query = supabase.from('products').select('*').order('name');
+    /**
+     * `product_pricing` en lugar de `products`: el coste está cerrado por
+     * columna para todo el mundo y solo se lee por esa vista, que además ya
+     * filtra por el negocio al que pertenece la sesión.
+     */
+    async listProducts(businessId?: string): Promise<ProductPricing[]> {
+      let query = supabase.from('product_pricing').select('*').order('name');
       if (businessId) {
         query = query.eq('business_id', businessId);
       }
 
       const { data, error } = await query;
       if (error) fail(error);
-      return (data ?? []).map((row) => toProduct(row as ProductRow));
+      return (data ?? []).map((row) => toProductPricing(row as ProductPricingRow));
     },
 
     async createProduct(input: ProductInput): Promise<void> {
@@ -762,6 +791,33 @@ export const api = {
       if (deactivateError) fail(deactivateError);
 
       return { deactivated: true };
+    },
+
+    /** Precio público de un producto suelto; queda marcado como manual. */
+    async setProductPrice(productId: string, priceUsd: number | null): Promise<void> {
+      const { error } = await supabase.rpc('set_product_price', {
+        p_product_id: productId,
+        p_price_usd: priceUsd,
+      });
+      if (error) throw new Error(error.message);
+    },
+
+    /**
+     * Recalcula precios desde el coste. Sin `businessId` alcanza a todo el
+     * marketplace. Devuelve cuántos productos cambiaron.
+     */
+    async applyMarkup(
+      markupPct: number,
+      businessId?: string | null,
+      overwriteManual = false,
+    ): Promise<number> {
+      const { data, error } = await supabase.rpc('apply_markup', {
+        p_markup_pct: markupPct,
+        p_business_id: businessId ?? null,
+        p_overwrite_manual: overwriteManual,
+      });
+      if (error) throw new Error(error.message);
+      return Number(data ?? 0);
     },
 
     async listOrders(status?: OrderStatus | null, businessId?: string | null): Promise<Order[]> {

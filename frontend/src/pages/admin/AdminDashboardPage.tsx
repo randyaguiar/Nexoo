@@ -9,7 +9,7 @@ import {
   ORDER_STATUSES,
   type Business,
   type Order,
-  type Product,
+  type ProductPricing,
 } from '../../api/types';
 
 /** Los pedidos cancelados no cuentan como ingreso. */
@@ -20,7 +20,7 @@ export function AdminDashboardPage() {
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [businessId, setBusinessId] = useState<string>(admin?.businessId ?? '');
   const [orders, setOrders] = useState<Order[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<ProductPricing[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -168,7 +168,7 @@ export function AdminDashboardPage() {
               {stats.lowStock.map((product) => (
                 <tr key={product.id}>
                   <td>{product.name}</td>
-                  <td>{formatUsd(product.priceUsd)}</td>
+                  <td>{product.priceUsd === null ? 'Sin precio' : formatUsd(product.priceUsd)}</td>
                   <td>{product.stock}</td>
                 </tr>
               ))}

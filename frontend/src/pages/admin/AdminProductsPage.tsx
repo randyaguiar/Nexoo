@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../api/client';
-import { LOW_STOCK_THRESHOLD, type Business, type Product, type ProductInput } from '../../api/types';
+import {
+  LOW_STOCK_THRESHOLD,
+  isGlobalRole,
+  suggestedPrice,
+  type Business,
+  type ProductInput,
+  type ProductPricing,
+} from '../../api/types';
 import { useAuth } from '../../auth/AuthContext';
 import {
   BoxIcon,
@@ -17,7 +24,8 @@ const emptyForm = (businessId: string): ProductInput => ({
   businessId,
   name: '',
   description: '',
-  priceUsd: 0,
+  priceUsd: null,
+  costUsd: null,
   photoUrl: '',
   available: true,
   stock: 0,
@@ -28,11 +36,16 @@ export function AdminProductsPage() {
   // El trabajador solo mantiene el inventario: no crea, no borra y no cambia
   // el nombre ni el precio de un producto.
   const canManageCatalog = admin?.role !== 'worker';
+  // Solo un rol global fija el precio público; el negocio declara su coste.
+  const isGlobal = admin ? isGlobalRole(admin.role) : false;
 
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [selectedBusinessId, setSelectedBusinessId] = useState<string>('');
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<ProductPricing[]>([]);
   const [form, setForm] = useState<ProductInput>(emptyForm(''));
+  // El margen del negocio llega con sus productos; sin ninguno todavía, el
+  // valor por defecto de la tabla.
+  const markupPct = products[0]?.defaultMarkupPct ?? 30;
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -105,7 +118,7 @@ export function AdminProductsPage() {
     }
   };
 
-  const edit = (product: Product) => {
+  const edit = (product: ProductPricing) => {
     setEditingId(product.id);
     setFormOpen(true);
     setForm({
@@ -113,13 +126,14 @@ export function AdminProductsPage() {
       name: product.name,
       description: product.description ?? '',
       priceUsd: product.priceUsd,
+      costUsd: product.costUsd,
       photoUrl: product.photoUrl ?? '',
       available: product.available,
       stock: product.stock,
     });
   };
 
-  const remove = async (product: Product) => {
+  const remove = async (product: ProductPricing) => {
     if (!confirm(`¿Eliminar "${product.name}"? Si tiene pedidos, solo se marcará no disponible.`)) {
       return;
     }
@@ -175,7 +189,8 @@ export function AdminProductsPage() {
             <thead>
               <tr>
                 <th>Producto</th>
-                <th>Precio</th>
+                <th>Coste</th>
+                <th>Precio público</th>
                 <th>Stock</th>
                 <th>Disponible</th>
                 <th />
@@ -191,7 +206,14 @@ export function AdminProductsPage() {
                     </span>
                     {product.description && <div className="meta">{product.description}</div>}
                   </td>
-                  <td>{formatUsd(product.priceUsd)}</td>
+                  <td>{product.costUsd === null ? '—' : formatUsd(product.costUsd)}</td>
+                  <td>
+                    {product.priceUsd === null ? (
+                      <span className="field-hint">Sin precio: no se vende</span>
+                    ) : (
+                      formatUsd(product.priceUsd)
+                    )}
+                  </td>
                   <td className={product.stock <= LOW_STOCK_THRESHOLD ? 'low-stock' : undefined}>
                     {product.stock}
                   </td>
@@ -255,19 +277,44 @@ export function AdminProductsPage() {
                 />
               </div>
               <div className="field">
-                <label htmlFor="priceUsd">Precio (USD)</label>
+                <label htmlFor="costUsd">Tu precio (USD)</label>
                 <input
-                  id="priceUsd"
+                  id="costUsd"
                   type="number"
                   required
                   disabled={!canManageCatalog}
                   min={0.01}
                   step={0.01}
-                  value={form.priceUsd}
-                  onChange={(e) => set('priceUsd', Number(e.target.value))}
+                  value={form.costUsd ?? ''}
+                  onChange={(e) =>
+                    set('costUsd', e.target.value === '' ? null : Number(e.target.value))
+                  }
                 />
+                <p className="field-hint">Lo que cobras tú. No se muestra al comprador.</p>
               </div>
             </div>
+            {isGlobal && (
+              <div className="field">
+                <label htmlFor="priceUsd">Precio público (USD)</label>
+                <input
+                  id="priceUsd"
+                  type="number"
+                  min={0.01}
+                  step={0.01}
+                  value={form.priceUsd ?? ''}
+                  onChange={(e) =>
+                    set('priceUsd', e.target.value === '' ? null : Number(e.target.value))
+                  }
+                />
+                <p className="field-hint">
+                  {form.costUsd === null
+                    ? 'Sin precio no aparece en el catálogo.'
+                    : `Sugerido con el margen del negocio: ${
+                        suggestedPrice(form.costUsd, markupPct) ?? '—'
+                      } USD`}
+                </p>
+              </div>
+            )}
             <div className="field">
               <label htmlFor="stock">Unidades en inventario</label>
               <input
