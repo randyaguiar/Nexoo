@@ -26,3 +26,9 @@ psql -h /tmp -p 5433 -U postgres -d nexoo -q -t -f supabase/tests/01_flow.sql
 ajuste de sesión en vez de un JWT) y lo mínimo de `storage`. No pretende ser
 Supabase: sirve para que las migraciones se apliquen y las policies se puedan
 ejercitar cambiando de rol con `set role` y `set request.jwt.claim.sub`.
+
+## Qué hay aplicado en un proyecto
+
+`diagnostico.sql` lista los objetos que añade cada migración reciente y si están
+o no. Sirve para saber en qué punto se quedó una base de datos sin ir probando
+migraciones a ciegas; se pega tal cual en el SQL editor de Supabase.
