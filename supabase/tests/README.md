@@ -32,3 +32,11 @@ ejercitar cambiando de rol con `set role` y `set request.jwt.claim.sub`.
 `diagnostico.sql` lista los objetos que añade cada migración reciente y si están
 o no. Sirve para saber en qué punto se quedó una base de datos sin ir probando
 migraciones a ciegas; se pega tal cual en el SQL editor de Supabase.
+
+## Ponerse al día
+
+`aplicar_pendientes.sql` es la concatenación de las migraciones de precios,
+liquidaciones, fotos y permisos dentro de un `begin/commit`, para un proyecto
+que solo tenía aplicadas las anteriores. Se pega entero en el SQL editor: o
+entra todo, o no entra nada. Después hace falta `notify pgrst, 'reload schema';`
+para que PostgREST vea las tablas y vistas nuevas.

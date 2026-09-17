@@ -43,15 +43,8 @@ select case when exists (select 1 from public.admins
                            and role='business_admin' and business_id is not null)
        then '4 OK: el solicitante es business_admin de su negocio'
        else '4 FALLO' end;
-set role authenticated;
-set request.jwt.claim.sub = '11111111-1111-1111-1111-111111111111';
-select public.approve_business_application(
-  (select id from public.business_applications where status='pending' limit 1)) as b \gset
-\echo '3 OK: el owner aprueba'
-
-select case when exists (select 1 from public.admins
-       where user_id='22222222-2222-2222-2222-222222222222' and role='business_admin')
-  then '4 OK: solicitante convertido en business_admin' else '4 FALLO' end;
+-- El negocio recién creado, para el resto de la prueba.
+select business_id as b from public.business_applications where status='approved' \gset
 
 -- 5) El negocio crea un producto con su coste y sin precio público.
 set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
@@ -149,6 +142,8 @@ select public.mark_settlement_paid((select id from public.settlements limit 1),
 select '22 OK: liquidación '||status||', pedido pasa a '||
   (select status from public.orders where id=:'oid')
 from public.settlements limit 1;
+-- Los intentos que deben fallar: alguien con cuenta pero sin acceso al panel.
+reset role;
 insert into auth.users (id, email) values
   ('55555555-5555-5555-5555-555555555555','intruso@x.com') on conflict do nothing;
 insert into public.business_applications
