@@ -20,14 +20,18 @@ alter table public.products
     add constraint products_photo_urls_check
     check (coalesce(array_length(photo_urls, 1), 0) <= 3);
 
--- Las vistas y el grant por columna nombran las columnas una a una, así que la
--- antigua se quita después de que dejen de mencionarla.
+-- Las vistas se recrean desde cero en lugar de con `create or replace`: esa
+-- forma no puede renombrar una columna existente (42P16), y aquí `photo_url`
+-- pasa a ser `photo_urls`.
+
+drop view if exists public.product_catalog;
+drop view if exists public.product_pricing;
 
 revoke select on public.products from anon, authenticated;
 grant select (id, business_id, name, description, price_usd, photo_urls, available, created_at, stock)
     on public.products to anon, authenticated;
 
-create or replace view public.product_catalog
+create view public.product_catalog
 with (security_invoker = on) as
     select p.id,
            p.business_id,
@@ -42,7 +46,7 @@ with (security_invoker = on) as
 
 grant select on public.product_catalog to anon, authenticated;
 
-create or replace view public.product_pricing as
+create view public.product_pricing as
     select p.id,
            p.business_id,
            b.name as business_name,
