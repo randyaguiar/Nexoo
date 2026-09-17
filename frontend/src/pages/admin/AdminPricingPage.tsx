@@ -86,7 +86,7 @@ export function AdminPricingPage() {
       );
       setNotice(
         changed === 0
-          ? 'No cambió ningún precio: revisa que los productos tengan coste declarado.'
+          ? 'No cambió ningún precio: revisa que los negocios hayan declarado el suyo.'
           : `${changed} ${changed === 1 ? 'precio actualizado' : 'precios actualizados'}.`,
       );
       await load();
@@ -105,7 +105,7 @@ export function AdminPricingPage() {
       {notice && <div className="alert success">{notice}</div>}
 
       <div className="page-toolbar">
-        <h3 className="form-title">Precios de venta</h3>
+        <h3 className="form-title">Precios públicos</h3>
         <select value={businessId} onChange={(e) => setBusinessId(e.target.value)}>
           <option value="">Todos los negocios</option>
           {businesses.map((b) => (
@@ -126,7 +126,7 @@ export function AdminPricingPage() {
       )}
 
       <div className="card" style={{ marginBottom: 'var(--space-4)' }}>
-        <h4 className="form-title">Recalcular desde el coste</h4>
+        <h4 className="form-title">Recalcular precios con un margen</h4>
         <div className="field-row">
           <div className="field">
             <label htmlFor="markup">Margen (%)</label>
@@ -159,8 +159,9 @@ export function AdminPricingPage() {
           </button>
         </div>
         <p className="field-hint">
-          El precio queda en coste × (1 + margen). Solo alcanza a los productos con coste
-          declarado; el margen aplicado pasa a ser el nuevo por defecto del negocio.
+          El precio público queda en lo que le pagas al negocio × (1 + margen). Solo alcanza a los
+          productos cuyo negocio ya declaró su precio; el margen aplicado pasa a ser el nuevo por
+          defecto de ese negocio.
         </p>
       </div>
 
@@ -175,10 +176,10 @@ export function AdminPricingPage() {
               <tr>
                 <th>Producto</th>
                 {!businessId && <th>Negocio</th>}
-                <th>Coste</th>
+                <th>Pagas al negocio</th>
                 <th>Sugerido</th>
                 <th>Precio público</th>
-                <th>Margen</th>
+                <th>Tu margen</th>
                 <th />
               </tr>
             </thead>

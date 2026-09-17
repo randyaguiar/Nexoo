@@ -233,7 +233,7 @@ export function AdminProductsPage() {
             <thead>
               <tr>
                 <th>Producto</th>
-                <th>Coste</th>
+                <th>{isGlobal ? 'Pagas al negocio' : 'Tu precio'}</th>
                 <th>Precio público</th>
                 <th>Stock</th>
                 <th>Disponible</th>
@@ -321,7 +321,9 @@ export function AdminProductsPage() {
                 />
               </div>
               <div className="field">
-                <label htmlFor="costUsd">Tu precio (USD)</label>
+                <label htmlFor="costUsd">
+                  {isGlobal ? 'Pagas al negocio (USD)' : 'Tu precio (USD)'}
+                </label>
                 <input
                   id="costUsd"
                   type="number"
@@ -334,7 +336,11 @@ export function AdminProductsPage() {
                     set('costUsd', e.target.value === '' ? null : Number(e.target.value))
                   }
                 />
-                <p className="field-hint">Lo que cobras tú. No se muestra al comprador.</p>
+                <p className="field-hint">
+                  {isGlobal
+                    ? 'Lo que le pagas al negocio por cada unidad. No se muestra al comprador.'
+                    : 'Lo que Nexoo te paga por cada unidad. No se muestra al comprador.'}
+                </p>
               </div>
             </div>
             {isGlobal && (
@@ -351,11 +357,12 @@ export function AdminProductsPage() {
                   }
                 />
                 <p className="field-hint">
+                  Lo que paga el comprador.{' '}
                   {form.costUsd === null
                     ? 'Sin precio no aparece en el catálogo.'
                     : `Sugerido con el margen del negocio: ${
                         suggestedPrice(form.costUsd, markupPct) ?? '—'
-                      } USD`}
+                      } USD.`}
                 </p>
               </div>
             )}
