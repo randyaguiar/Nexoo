@@ -328,3 +328,69 @@ export interface BusinessApplicationInput {
   contactPhone: string;
   categoryIds: string[];
 }
+
+/** Por dónde le llega el dinero al negocio. */
+export type PayoutMethod = 'zelle_us' | 'cash_cuba' | 'mlc_cuba' | 'transfer_cuba';
+
+export const PAYOUT_METHODS: { value: PayoutMethod; label: string }[] = [
+  { value: 'zelle_us', label: 'Zelle (EE.UU.)' },
+  { value: 'cash_cuba', label: 'Efectivo en Cuba' },
+  { value: 'mlc_cuba', label: 'Tarjeta MLC' },
+  { value: 'transfer_cuba', label: 'Transferencia en Cuba' },
+];
+
+export const payoutMethodLabel = (method: string): string =>
+  PAYOUT_METHODS.find((m) => m.value === method)?.label ?? method;
+
+export interface PayoutAccount {
+  businessId: string;
+  method: PayoutMethod;
+  /** Quien cobra; a menudo un familiar, no el dueño. */
+  holderName: string;
+  /** Email de Zelle, teléfono o número de tarjeta según el método. */
+  contact: string;
+  notes: string | null;
+}
+
+/** Lo que se le debe a un negocio y aún no se ha agrupado en una liquidación. */
+export interface PendingSettlement {
+  businessId: string;
+  orderCount: number;
+  periodStart: string;
+  periodEnd: string;
+  grossUsd: number;
+  costUsd: number;
+}
+
+export interface Settlement {
+  id: string;
+  businessId: string;
+  periodStart: string;
+  periodEnd: string;
+  orderCount: number;
+  /** Lo que pagaron los compradores. */
+  grossUsd: number;
+  /** Lo que se le debe al negocio, con el coste del momento de cada venta. */
+  costUsd: number;
+  /** El margen de Nexoo, congelado al cerrar. */
+  feeUsd: number;
+  status: 'pending' | 'paid';
+  payoutMethod: string | null;
+  payoutCurrency: string;
+  /** Unidades de `payoutCurrency` por dólar, si se pagó en otra moneda. */
+  fxRate: number | null;
+  payoutAmount: number | null;
+  reference: string | null;
+  notes: string | null;
+  paidAt: string | null;
+  createdAt: string;
+}
+
+export interface SettlementPayment {
+  method: PayoutMethod;
+  reference: string;
+  payoutCurrency: string;
+  fxRate: number | null;
+  payoutAmount: number | null;
+  notes: string;
+}

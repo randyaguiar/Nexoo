@@ -74,6 +74,29 @@ quedar al menos un `owner` y nadie puede degradarse ni eliminarse a sí mismo.
 Negocios y productos con pedidos asociados no se pueden borrar (lo impide la clave foránea): el
 panel los desactiva en su lugar.
 
+### Precios y liquidaciones
+
+El negocio declara su precio mayorista (`products.cost_usd`) y la plataforma fija el público
+(`products.price_usd`). Un producto sin precio público no existe para el comprador: queda fuera del
+catálogo y `create_order()` lo rechaza, así que cada alta pasa por *Admin → Precios*.
+
+`cost_usd` no se protege con un grant por rol porque no lo habría: todos los usuarios de la app son
+el mismo rol de Postgres (`authenticated`) y los roles de Nexoo viven en `admins`. Se cierra por
+columna para todos y el panel lo lee por la vista `product_pricing`, que filtra con
+`can_access_business()`. Un trigger impide además que un rol de negocio toque el precio público.
+
+`apply_markup()` recalcula precios desde el coste —un negocio o el marketplace entero— y respeta
+los que se ajustaron a mano salvo que se pida lo contrario; ese "a mano" lo marca el mismo trigger.
+
+Una liquidación agrupa los pedidos de un negocio ya cobrados al comprador y todavía sin pagar, y
+congela lo que entró, lo que se debe y el margen. El vínculo es `orders.settlement_id`, así que un
+pedido no puede entrar en dos. Los pedidos en `PaidToBusiness` quedan fuera a propósito: ese estado
+significa que ya se pagó a mano. Lo que se le debe al negocio sale de `order_items.unit_cost`, el
+coste del momento de la venta, no el de hoy.
+
+Los datos de cobro del negocio viven en `business_payout_accounts` y no en `businesses`, porque esa
+tabla la lee `anon` entera y ahí hay nombres y teléfonos de personas.
+
 ### Alta de negocios
 
 Un negocio entra solo: quien lo gestiona crea su cuenta de comprador, rellena `/registro-negocio` y

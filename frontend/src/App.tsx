@@ -25,6 +25,7 @@ import { AdminOrdersPage } from './pages/admin/AdminOrdersPage';
 import { AdminPlacesPage } from './pages/admin/AdminPlacesPage';
 import { AdminPricingPage } from './pages/admin/AdminPricingPage';
 import { AdminProductsPage } from './pages/admin/AdminProductsPage';
+import { AdminSettlementsPage } from './pages/admin/AdminSettlementsPage';
 import { AdminUsersPage } from './pages/admin/AdminUsersPage';
 
 export function App() {
@@ -56,6 +57,7 @@ export function App() {
             <Route path="categorias" element={<AdminCategoriesPage />} />
             <Route path="lugares" element={<AdminPlacesPage />} />
             <Route path="precios" element={<AdminPricingPage />} />
+            <Route path="liquidaciones" element={<AdminSettlementsPage />} />
             <Route path="solicitudes" element={<AdminApplicationsPage />} />
             <Route path="usuarios" element={<AdminUsersPage />} />
             <Route path="historial" element={<AdminActivityPage />} />

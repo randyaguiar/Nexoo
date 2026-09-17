@@ -42,6 +42,12 @@ const NAV_ITEMS: { to: string; label: string; Icon: typeof BoxIcon; roles: Admin
     roles: ['owner', 'staff', 'business_admin', 'worker'],
   },
   { to: '/admin/precios', label: 'Precios', Icon: TagIcon, roles: ['owner', 'staff'] },
+  {
+    to: '/admin/liquidaciones',
+    label: 'Liquidaciones',
+    Icon: ReceiptIcon,
+    roles: ['owner', 'staff', 'business_admin'],
+  },
   { to: '/admin/categorias', label: 'Categorías', Icon: TagIcon, roles: ['owner', 'staff'] },
   {
     to: '/admin/lugares',

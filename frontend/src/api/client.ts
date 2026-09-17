@@ -21,7 +21,11 @@ import type {
   Province,
   ProvinceInput,
   ProvinceRef,
+  PayoutAccount,
+  PendingSettlement,
   ProductPricing,
+  Settlement,
+  SettlementPayment,
   UserProfile,
 } from './types';
 import type {
@@ -282,6 +286,67 @@ const toBusinessApplication = (row: BusinessApplicationRow): BusinessApplication
   reviewNote: row.review_note,
   reviewedAt: row.reviewed_at,
   businessId: row.business_id,
+  createdAt: row.created_at,
+});
+
+interface PendingSettlementRow {
+  business_id: string;
+  order_count: number;
+  period_start: string;
+  period_end: string;
+  gross_usd: number;
+  cost_usd: number;
+}
+
+interface PayoutAccountRow {
+  business_id: string;
+  method: PayoutAccount['method'];
+  holder_name: string;
+  contact: string;
+  notes: string | null;
+}
+
+interface SettlementRow {
+  id: string;
+  business_id: string;
+  period_start: string;
+  period_end: string;
+  order_count: number;
+  gross_usd: number;
+  cost_usd: number;
+  fee_usd: number;
+  status: Settlement['status'];
+  payout_method: string | null;
+  payout_currency: string;
+  fx_rate: number | null;
+  payout_amount: number | null;
+  reference: string | null;
+  notes: string | null;
+  paid_at: string | null;
+  created_at: string;
+}
+
+const SETTLEMENT_COLUMNS =
+  'id, business_id, period_start, period_end, order_count, gross_usd, cost_usd, fee_usd, ' +
+  'status, payout_method, payout_currency, fx_rate, payout_amount, reference, notes, paid_at, created_at';
+
+const toSettlement = (row: SettlementRow): Settlement => ({
+  id: row.id,
+  businessId: row.business_id,
+  periodStart: row.period_start,
+  periodEnd: row.period_end,
+  orderCount: Number(row.order_count),
+  grossUsd: Number(row.gross_usd),
+  costUsd: Number(row.cost_usd),
+  feeUsd: Number(row.fee_usd),
+  status: row.status,
+  payoutMethod: row.payout_method,
+  payoutCurrency: row.payout_currency,
+  fxRate: row.fx_rate === null ? null : Number(row.fx_rate),
+  payoutAmount: row.payout_amount === null ? null : Number(row.payout_amount),
+  reference: row.reference,
+  notes: row.notes,
+  paidAt: row.paid_at,
   createdAt: row.created_at,
 });
 
@@ -622,6 +687,89 @@ export const api = {
         p_note: note,
       });
       if (error) throw new Error(error.message);
+    },
+  },
+
+  /**
+   * Liquidaciones: lo que se le debe a cada negocio y lo que ya se le pagó.
+   * Un pedido entra en una sola liquidación; la marca es `orders.settlement_id`.
+   */
+  settlements: {
+    /** Lo pendiente por negocio. Un negocio solo ve su propia fila. */
+    async pending(): Promise<PendingSettlement[]> {
+      const { data, error } = await supabase
+        .from('pending_settlements')
+        .select('business_id, order_count, period_start, period_end, gross_usd, cost_usd');
+
+      if (error) fail(error);
+      return ((data ?? []) as PendingSettlementRow[]).map((row) => ({
+        businessId: row.business_id,
+        orderCount: Number(row.order_count),
+        periodStart: row.period_start,
+        periodEnd: row.period_end,
+        grossUsd: Number(row.gross_usd),
+        costUsd: Number(row.cost_usd),
+      }));
+    },
+
+    async list(businessId?: string | null): Promise<Settlement[]> {
+      let query = supabase
+        .from('settlements')
+        .select(SETTLEMENT_COLUMNS)
+        .order('created_at', { ascending: false });
+
+      if (businessId) query = query.eq('business_id', businessId);
+
+      const { data, error } = await query;
+      if (error) fail(error);
+      return ((data ?? []) as unknown as SettlementRow[]).map(toSettlement);
+    },
+
+    async create(businessId: string): Promise<string> {
+      const { data, error } = await supabase.rpc('create_settlement', {
+        p_business_id: businessId,
+      });
+      if (error) throw new Error(error.message);
+      return data as string;
+    },
+
+    async markPaid(id: string, payment: SettlementPayment): Promise<void> {
+      const { error } = await supabase.rpc('mark_settlement_paid', {
+        p_id: id,
+        p_method: payment.method,
+        p_reference: payment.reference.trim() || null,
+        p_payout_currency: payment.payoutCurrency.trim().toUpperCase() || 'USD',
+        p_fx_rate: payment.fxRate,
+        p_payout_amount: payment.payoutAmount,
+        p_notes: payment.notes.trim() || null,
+      });
+      if (error) throw new Error(error.message);
+    },
+
+    async payoutAccounts(): Promise<PayoutAccount[]> {
+      const { data, error } = await supabase
+        .from('business_payout_accounts')
+        .select('business_id, method, holder_name, contact, notes');
+
+      if (error) fail(error);
+      return ((data ?? []) as PayoutAccountRow[]).map((row) => ({
+        businessId: row.business_id,
+        method: row.method,
+        holderName: row.holder_name,
+        contact: row.contact,
+        notes: row.notes,
+      }));
+    },
+
+    async savePayoutAccount(account: PayoutAccount): Promise<void> {
+      const { error } = await supabase.from('business_payout_accounts').upsert({
+        business_id: account.businessId,
+        method: account.method,
+        holder_name: account.holderName.trim(),
+        contact: account.contact.trim(),
+        notes: account.notes?.trim() || null,
+      });
+      if (error) fail(error);
     },
   },
 
