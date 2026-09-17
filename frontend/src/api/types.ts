@@ -240,6 +240,7 @@ const ACTIVITY_ENTITIES: Record<string, string> = {
   orders: 'Pedido',
   admins: 'Usuario del panel',
   categories: 'Categoría',
+  business_applications: 'Solicitud de alta',
 };
 
 export const activityEntityLabel = (entity: string): string =>
@@ -254,4 +255,47 @@ export interface UserProfile {
   phone: string;
   /** Recibir por email las actualizaciones de los pedidos. */
   orderEmails: boolean;
+}
+
+/** Estado de una solicitud de alta de negocio. */
+export type BusinessApplicationStatus = 'pending' | 'approved' | 'rejected';
+
+export const BUSINESS_APPLICATION_STATUSES: {
+  value: BusinessApplicationStatus;
+  label: string;
+}[] = [
+  { value: 'pending', label: 'Pendiente' },
+  { value: 'approved', label: 'Aprobada' },
+  { value: 'rejected', label: 'Rechazada' },
+];
+
+export const businessApplicationStatusLabel = (status: BusinessApplicationStatus): string =>
+  BUSINESS_APPLICATION_STATUSES.find((s) => s.value === status)?.label ?? status;
+
+export interface BusinessApplication {
+  id: string;
+  userId: string;
+  contactEmail: string;
+  name: string;
+  description: string | null;
+  municipalityId: string;
+  /** Resueltos por el join; el formulario solo manda el id. */
+  municipalityName: string | null;
+  provinceName: string | null;
+  contactPhone: string;
+  categoryIds: string[];
+  status: BusinessApplicationStatus;
+  /** Motivo del rechazo, o la nota de quien aprobó. */
+  reviewNote: string | null;
+  reviewedAt: string | null;
+  businessId: string | null;
+  createdAt: string;
+}
+
+export interface BusinessApplicationInput {
+  name: string;
+  description: string;
+  municipalityId: string;
+  contactPhone: string;
+  categoryIds: string[];
 }

@@ -23,6 +23,11 @@ import type {
   ProvinceRef,
   UserProfile,
 } from './types';
+import type {
+  BusinessApplication,
+  BusinessApplicationInput,
+  BusinessApplicationStatus,
+} from './types';
 
 /**
  * Ruta a la que vuelve el enlace de confirmación del email. Debe estar en
@@ -220,6 +225,46 @@ const toAdminUser = (row: AdminRow): AdminUser => ({
   businessId: row.business_id,
   createdAt: row.created_at,
 });
+
+interface BusinessApplicationRow {
+  id: string;
+  user_id: string;
+  contact_email: string;
+  name: string;
+  description: string | null;
+  municipality_id: string;
+  municipalities: { name: string; provinces: { name: string } | null } | null;
+  contact_phone: string;
+  category_ids: string[] | null;
+  status: BusinessApplicationStatus;
+  review_note: string | null;
+  reviewed_at: string | null;
+  business_id: string | null;
+  created_at: string;
+}
+
+const toBusinessApplication = (row: BusinessApplicationRow): BusinessApplication => ({
+  id: row.id,
+  userId: row.user_id,
+  contactEmail: row.contact_email,
+  name: row.name,
+  description: row.description,
+  municipalityId: row.municipality_id,
+  municipalityName: row.municipalities?.name ?? null,
+  provinceName: row.municipalities?.provinces?.name ?? null,
+  contactPhone: row.contact_phone,
+  categoryIds: row.category_ids ?? [],
+  status: row.status,
+  reviewNote: row.review_note,
+  reviewedAt: row.reviewed_at,
+  businessId: row.business_id,
+  createdAt: row.created_at,
+});
+
+const APPLICATION_COLUMNS =
+  'id, user_id, contact_email, name, description, municipality_id, contact_phone, ' +
+  'category_ids, status, review_note, reviewed_at, business_id, created_at, ' +
+  'municipalities(name, provinces(name))';
 
 const ADMIN_COLUMNS = 'user_id, email, role, business_id, created_at';
 
@@ -478,6 +523,81 @@ export const api = {
 
       if (error) fail(error);
       return ((data ?? []) as unknown as OrderRow[]).map(toOrder);
+    },
+  },
+
+  /**
+   * Alta de negocios. Solicita quien ya tiene cuenta de comprador; un rol global
+   * resuelve. Aprobar crea el negocio y al business_admin en una sola llamada.
+   */
+  businessApplications: {
+    async submit(input: BusinessApplicationInput): Promise<void> {
+      const { data: auth } = await supabase.auth.getUser();
+      if (!auth.user) throw new Error('Entra con tu cuenta para solicitar el alta.');
+
+      const { error } = await supabase.from('business_applications').insert({
+        user_id: auth.user.id,
+        contact_email: auth.user.email,
+        name: input.name.trim(),
+        description: input.description.trim() || null,
+        municipality_id: input.municipalityId,
+        contact_phone: input.contactPhone.trim(),
+        category_ids: input.categoryIds,
+      });
+
+      if (error) {
+        // El índice parcial impide una segunda solicitud viva por persona.
+        if (error.code === '23505') {
+          throw new Error('Ya tienes una solicitud pendiente de revisión.');
+        }
+        fail(error);
+      }
+    },
+
+    /** La última solicitud de la sesión, o null si nunca ha mandado ninguna. */
+    async mine(): Promise<BusinessApplication | null> {
+      const { data: auth } = await supabase.auth.getUser();
+      if (!auth.user) return null;
+
+      const { data, error } = await supabase
+        .from('business_applications')
+        .select(APPLICATION_COLUMNS)
+        .eq('user_id', auth.user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) fail(error);
+      return data ? toBusinessApplication(data as unknown as BusinessApplicationRow) : null;
+    },
+
+    async list(status?: BusinessApplicationStatus | null): Promise<BusinessApplication[]> {
+      let query = supabase
+        .from('business_applications')
+        .select(APPLICATION_COLUMNS)
+        .order('created_at', { ascending: false });
+
+      if (status) query = query.eq('status', status);
+
+      const { data, error } = await query;
+      if (error) fail(error);
+      return ((data ?? []) as unknown as BusinessApplicationRow[]).map(toBusinessApplication);
+    },
+
+    async approve(id: string, note?: string): Promise<void> {
+      const { error } = await supabase.rpc('approve_business_application', {
+        p_id: id,
+        p_note: note?.trim() || null,
+      });
+      if (error) throw new Error(error.message);
+    },
+
+    async reject(id: string, note: string): Promise<void> {
+      const { error } = await supabase.rpc('reject_business_application', {
+        p_id: id,
+        p_note: note,
+      });
+      if (error) throw new Error(error.message);
     },
   },
 

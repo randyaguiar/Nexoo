@@ -100,6 +100,9 @@ export function Layout() {
                   </Link>
                 </li>
                 <li>
+                  <Link to="/registro-negocio">Vende en Nexoo</Link>
+                </li>
+                <li>
                   <Link to={admin ? '/admin/pedidos' : '/admin/login'}>Panel Admin</Link>
                 </li>
               </ul>

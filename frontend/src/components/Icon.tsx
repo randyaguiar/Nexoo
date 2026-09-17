@@ -273,3 +273,12 @@ export function HistoryIcon(props: IconProps) {
     </Svg>
   );
 }
+
+export function InboxIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M3.5 13.5 6 5.5h12l2.5 8" />
+      <path d="M3.5 13.5h4l1.2 2.4h6.6l1.2-2.4h4v3.6a1.9 1.9 0 0 1-1.9 1.9H5.4a1.9 1.9 0 0 1-1.9-1.9z" />
+    </Svg>
+  );
+}

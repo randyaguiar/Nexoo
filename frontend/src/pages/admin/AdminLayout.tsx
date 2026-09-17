@@ -5,6 +5,7 @@ import {
   BoxIcon,
   ChartIcon,
   HistoryIcon,
+  InboxIcon,
   MapPinIcon,
   ReceiptIcon,
   StoreIcon,
@@ -28,6 +29,12 @@ const NAV_ITEMS: { to: string; label: string; Icon: typeof BoxIcon; roles: Admin
     roles: ['owner', 'staff', 'business_admin', 'worker'],
   },
   { to: '/admin/negocios', label: 'Negocios', Icon: StoreIcon, roles: ['owner', 'staff'] },
+  {
+    to: '/admin/solicitudes',
+    label: 'Solicitudes',
+    Icon: InboxIcon,
+    roles: ['owner', 'staff'],
+  },
   {
     to: '/admin/productos',
     label: 'Productos',

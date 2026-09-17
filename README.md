@@ -74,6 +74,22 @@ quedar al menos un `owner` y nadie puede degradarse ni eliminarse a sí mismo.
 Negocios y productos con pedidos asociados no se pueden borrar (lo impide la clave foránea): el
 panel los desactiva en su lugar.
 
+### Alta de negocios
+
+Un negocio entra solo: quien lo gestiona crea su cuenta de comprador, rellena `/registro-negocio` y
+la solicitud queda en `business_applications` como `pending`. Un rol global la resuelve desde
+*Admin → Solicitudes*.
+
+Aprobar es una sola llamada, `approve_business_application()`, que en la misma transacción crea el
+negocio con sus categorías y le da a quien solicitó el rol `business_admin` de ese negocio. Se hace
+en una función `security definer` porque escribir en `admins` no está abierto a nadie por policy, y
+porque un negocio sin dueño (o un dueño sin negocio) dejaría el panel en un estado imposible.
+
+Como la solicitud exige sesión, al aprobar ya existe el `auth.users.id` y no hace falta invitar por
+email. Una persona pertenece a un solo negocio (`admins.user_id` es la clave primaria), así que la
+función rechaza aprobar a quien ya tiene acceso al panel. Un índice parcial deja una sola solicitud
+`pending` por persona; rechazada, puede volver a enviarla con el motivo a la vista.
+
 ## Puesta en marcha
 
 ### 1. Supabase
@@ -163,6 +179,10 @@ cp .env.example .env    # rellena VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY
 npm install
 npm run dev
 ```
+
+> El `.env` hace falta también para `npm run build`. Sin él, `src/api/supabase.ts` lanza en el
+> propio import, el bundler lo da por código muerto y **compila sin fallar un bundle sin la
+> aplicación dentro**. Un build que pasa no prueba gran cosa si no hay `.env`.
 
 `http://localhost:5173`; el panel está en `/admin/login`.
 

@@ -12,8 +12,10 @@ import { CheckoutPage } from './pages/CheckoutPage';
 import { LoginPage } from './pages/LoginPage';
 import { MyOrdersPage } from './pages/MyOrdersPage';
 import { OrderConfirmationPage } from './pages/OrderConfirmationPage';
+import { RegisterBusinessPage } from './pages/RegisterBusinessPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { AdminActivityPage } from './pages/admin/AdminActivityPage';
+import { AdminApplicationsPage } from './pages/admin/AdminApplicationsPage';
 import { AdminBusinessesPage } from './pages/admin/AdminBusinessesPage';
 import { AdminCategoriesPage } from './pages/admin/AdminCategoriesPage';
 import { AdminDashboardPage } from './pages/admin/AdminDashboardPage';
@@ -38,6 +40,7 @@ export function App() {
 
           <Route path="entrar" element={<LoginPage />} />
           <Route path="registro" element={<RegisterPage />} />
+          <Route path="registro-negocio" element={<RegisterBusinessPage />} />
           <Route path={EMAIL_CONFIRM_PATH} element={<AuthConfirmPage />} />
           <Route path="mis-pedidos" element={<MyOrdersPage />} />
           <Route path="cuenta" element={<AccountPage />} />
@@ -51,6 +54,7 @@ export function App() {
             <Route path="productos" element={<AdminProductsPage />} />
             <Route path="categorias" element={<AdminCategoriesPage />} />
             <Route path="lugares" element={<AdminPlacesPage />} />
+            <Route path="solicitudes" element={<AdminApplicationsPage />} />
             <Route path="usuarios" element={<AdminUsersPage />} />
             <Route path="historial" element={<AdminActivityPage />} />
           </Route>
