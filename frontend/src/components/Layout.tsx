@@ -82,7 +82,7 @@ export function Layout() {
               <ul>
                 <li>Elige un negocio en Cuba</li>
                 <li>Arma el pedido y confírmalo</li>
-                <li>Paga por Zelle y entregamos</li>
+                <li>Paga con tarjeta y entregamos</li>
               </ul>
             </div>
             <div>
@@ -109,7 +109,7 @@ export function Layout() {
             </div>
           </div>
           <div className="footer-bottom">
-            © {new Date().getFullYear()} Nexoo · Pago coordinado por Zelle
+            © {new Date().getFullYear()} Nexoo · Pago seguro con tarjeta
           </div>
         </div>
       </footer>

@@ -1,8 +1,8 @@
 # Nexoo
 
 Plataforma para comprar en negocios locales de Cuba (Pinar del Río y La Habana) desde EE.UU. y
-entregar el pedido a un familiar en la isla. El pago se coordina manualmente por Zelle fuera de la
-plataforma.
+entregar el pedido a un familiar en la isla. El comprador paga con tarjeta en Stripe; la plataforma
+liquida después a cada negocio.
 
 ## Arquitectura
 
@@ -73,6 +73,26 @@ quedar al menos un `owner` y nadie puede degradarse ni eliminarse a sí mismo.
 
 Negocios y productos con pedidos asociados no se pueden borrar (lo impide la clave foránea): el
 panel los desactiva en su lugar.
+
+### Cobro con Stripe
+
+El pedido se crea antes de pagar, porque `create_order()` es quien reserva el stock; nace como
+`PendingPayment` y solo pasa a `Paid` cuando Stripe confirma el cobro por webhook. Volver del
+checkout a la web no prueba nada —esa URL se puede escribir a mano—, así que la página de
+confirmación enseña lo que diga la base de datos, no lo que diga el parámetro de vuelta.
+
+`create-checkout-session` lee el importe y las líneas de la base de datos, nunca del navegador: si
+vinieran del cliente se podría pagar un pedido de 300 USD por uno. Manda una `Idempotency-Key` con
+el id del pedido, así que pulsar dos veces no abre dos cobros.
+
+`stripe-webhook` comprueba la firma `t=…,v1=…` de Stripe con HMAC-SHA256 y compara en tiempo
+constante; sin eso, quien conociera la URL podría declarar pagado cualquier pedido. Solo reacciona a
+`checkout.session.completed`, y `mark_order_paid()` filtra por estado, de modo que el reintento de
+un evento ya procesado no cambia nada. Esa función es la única vía para dar por pagado un pedido y
+está concedida solo a la `service_role`.
+
+Zelle sigue en el proyecto, pero como forma de **pagarle al negocio**
+(`business_payout_accounts.method = 'zelle_us'`). Eso es dinero saliendo; Stripe es el que entra.
 
 ### Fotos de producto
 
@@ -195,7 +215,27 @@ El asunto y el cuerpo se editan en Authentication → **Emails** → *Templates*
 cambia la plantilla, hay que conservar `{{ .ConfirmationURL }}`; la variante con
 `{{ .TokenHash }}` también funciona porque `/auth/confirmado` canjea los dos formatos.
 
-### 5. Aviso por email (opcional)
+### 5. Cobro con Stripe
+
+1. Stripe → *Developers → API keys* → copia la clave secreta.
+2. Edge Functions → Secrets: `STRIPE_SECRET_KEY` y `SITE_URL` (la URL pública del sitio, sin barra
+   final).
+3. Despliega las funciones:
+
+   ```bash
+   supabase functions deploy create-checkout-session
+   supabase functions deploy stripe-webhook
+   ```
+
+4. Stripe → *Developers → Webhooks* → *Add endpoint*:
+   `https://<project-ref>.supabase.co/functions/v1/stripe-webhook`, evento
+   `checkout.session.completed`. Copia el *signing secret* y guárdalo como `STRIPE_WEBHOOK_SECRET`.
+
+Las dos funciones van con `verify_jwt = false` (`supabase/config.toml`): a la primera la llama un
+comprador que puede no tener cuenta, y la segunda la llama Stripe, que no manda un JWT sino su
+propia firma.
+
+### 6. Aviso por email (opcional)
 
 ```bash
 supabase functions deploy notify-new-order
@@ -206,7 +246,7 @@ Luego Database → Webhooks → nuevo webhook: tabla `public.orders`, evento `IN
 Edge Functions*, función `notify-new-order`. Sin `RESEND_API_KEY` el pedido se crea igual y el aviso
 solo queda en el log de la función.
 
-### 6. Frontend
+### 7. Frontend
 
 ```bash
 cd frontend
@@ -224,17 +264,17 @@ npm run dev
 > La `anon key` es pública por diseño y va en el bundle: quien protege los datos es RLS, no la
 > clave. La `service_role` key **nunca** debe aparecer en el frontend.
 
-### 7. Vercel
+### 8. Vercel
 
 *New Project* → el repositorio → **Root Directory: `frontend`**. Vercel detecta Vite y `vercel.json`
 ya trae el rewrite a `index.html` que necesitan las rutas del router. Añade `VITE_SUPABASE_URL`,
-`VITE_SUPABASE_ANON_KEY` y `VITE_ZELLE_EMAIL` como variables de entorno. A partir de ahí cada push
+`VITE_SUPABASE_ANON_KEY` como variables de entorno. A partir de ahí cada push
 publica solo.
 
 ## Flujo end-to-end
 
 Catálogo → filtro por provincia y categoría → negocio → carrito (un solo negocio) → checkout con datos del
-comprador y del destinatario → pedido `Pendiente de pago` + instrucciones de Zelle + email al admin
+comprador y del destinatario → pago con tarjeta en Stripe → el webhook marca el pedido pagado + email al admin
 → el panel lista el pedido y cambia su estado.
 
 ## Fuera del alcance del MVP

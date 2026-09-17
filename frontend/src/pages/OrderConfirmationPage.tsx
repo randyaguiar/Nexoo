@@ -1,16 +1,16 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
 import { shortRef, type Order } from '../api/types';
 import { formatUsd } from '../components/Money';
 import { StatusBadge } from '../components/StatusBadge';
 
-const ZELLE_EMAIL: string = import.meta.env.VITE_ZELLE_EMAIL ?? 'pagos@nexoo.app';
-
 export function OrderConfirmationPage() {
   const { id = '' } = useParams();
+  const [params] = useSearchParams();
   const [order, setOrder] = useState<Order | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [retrying, setRetrying] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -27,6 +27,17 @@ export function OrderConfirmationPage() {
       cancelled = true;
     };
   }, [id]);
+
+  const payNow = async () => {
+    setRetrying(true);
+    setError(null);
+    try {
+      window.location.href = await api.createCheckoutSession(id);
+    } catch (e) {
+      setError((e as Error).message);
+      setRetrying(false);
+    }
+  };
 
   if (error)
     return (
@@ -55,22 +66,27 @@ export function OrderConfirmationPage() {
         Referencia <strong>{shortRef(order.id)}</strong> · <StatusBadge status={order.status} />
       </p>
 
-      <div className="alert info">
-        <strong>Completa el pago por Zelle para procesar tu pedido.</strong>
-        <ul>
-          <li>
-            Envía <strong>{formatUsd(order.totalUsd)}</strong> por Zelle a{' '}
-            <strong>{ZELLE_EMAIL}</strong>.
-          </li>
-          <li>
-            Escribe la referencia <strong>{shortRef(order.id)}</strong> en la nota del pago.
-          </li>
-          <li>
-            Al confirmar el pago marcamos el pedido como pagado y coordinamos la entrega con{' '}
-            {order.businessName}.
-          </li>
-        </ul>
-      </div>
+      {order.status === 'PendingPayment' ? (
+        <div className="alert error" role="alert">
+          <strong>El pago no se ha completado.</strong>
+          <p>
+            {params.get('pago') === 'cancelado'
+              ? 'Cancelaste el pago antes de terminar. Tu pedido sigue reservado: puedes retomarlo.'
+              : 'Todavía no nos consta el cobro. Si acabas de pagar, espera unos segundos y recarga.'}
+          </p>
+          <button type="button" disabled={retrying} onClick={() => void payNow()}>
+            {retrying ? 'Abriendo…' : `Pagar ${formatUsd(order.totalUsd)}`}
+          </button>
+        </div>
+      ) : (
+        <div className="alert success">
+          <strong>Pago recibido.</strong>
+          <p>
+            Ya estamos coordinando la entrega con {order.businessName}. Te avisaremos por email
+            cuando el pedido salga hacia su destino.
+          </p>
+        </div>
+      )}
 
       <div className="card">
         <h3>Detalle del pedido</h3>

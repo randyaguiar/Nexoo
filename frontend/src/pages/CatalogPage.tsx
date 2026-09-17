@@ -72,7 +72,7 @@ export function CatalogPage() {
             <span>2</span> Arma tu pedido
           </li>
           <li>
-            <span>3</span> Paga por Zelle
+            <span>3</span> Paga con tarjeta
           </li>
           <li>
             <span>4</span> Entregamos en Cuba

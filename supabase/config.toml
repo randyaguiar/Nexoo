@@ -8,3 +8,11 @@ verify_jwt = false
 [functions.manage-admins]
 # La llama el panel con el JWT del admin; la función exige además el rol owner.
 verify_jwt = true
+
+[functions.create-checkout-session]
+# La llama el navegador del comprador, que puede no tener cuenta.
+verify_jwt = false
+
+[functions.stripe-webhook]
+# Stripe no manda un JWT: la autenticidad se comprueba con su firma.
+verify_jwt = false

@@ -521,6 +521,31 @@ export const api = {
     return { business: toBusiness(data as unknown as BusinessRow, products.length), products };
   },
 
+  /**
+   * Abre la pasarela y devuelve la URL a la que mandar al comprador. El importe
+   * lo calcula la función desde la base de datos: aquí solo viaja el id.
+   */
+  async createCheckoutSession(orderId: string): Promise<string> {
+    const { data, error } = await supabase.functions.invoke('create-checkout-session', {
+      body: { orderId },
+    });
+
+    if (error) {
+      const context: unknown = (error as { context?: unknown }).context;
+      if (context instanceof Response) {
+        const payload = (await context.clone().json().catch(() => null)) as
+          | { error?: string }
+          | null;
+        if (payload?.error) throw new Error(payload.error);
+      }
+      throw new Error('No se pudo abrir la pasarela de pago.');
+    }
+
+    const url = (data as { url?: string } | null)?.url;
+    if (!url) throw new Error('No se pudo abrir la pasarela de pago.');
+    return url;
+  },
+
   async createOrder(input: CreateOrderInput): Promise<{ id: string }> {
     // El total y los precios los calcula create_order() en la base de datos.
     const { data, error } = await supabase.rpc('create_order', { payload: input });

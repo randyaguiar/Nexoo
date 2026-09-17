@@ -97,7 +97,7 @@ export function CartPage() {
       </div>
 
       <p className="meta" style={{ marginTop: 'var(--space-4)' }}>
-        Cada pedido se paga a un solo negocio. El pago se coordina por Zelle al confirmar.
+        Cada pedido se paga a un solo negocio. Al confirmar se cobra con tarjeta.
         {cart.reservation?.expiresAt && (
           <> Te guardamos estos productos hasta las {formatTime(cart.reservation.expiresAt)}.</>
         )}

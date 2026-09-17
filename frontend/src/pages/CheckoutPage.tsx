@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import type { Municipality, Province, ProvinceRef } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
@@ -32,7 +32,6 @@ const initialForm: FormState = {
 
 export function CheckoutPage() {
   const cart = useCart();
-  const navigate = useNavigate();
   const { user } = useAuth();
   const [form, setForm] = useState<FormState>(() => ({
     ...initialForm,
@@ -118,8 +117,10 @@ export function CheckoutPage() {
         items: cart.lines.map((l) => ({ productId: l.product.id, quantity: l.quantity })),
         cartToken: cart.cartToken,
       });
+      const checkoutUrl = await api.createCheckoutSession(order.id);
       cart.clear();
-      navigate(`/pedido/${order.id}`);
+      // Fuera de la app: no es una ruta del router, es el dominio de Stripe.
+      window.location.href = checkoutUrl;
     } catch (e) {
       setError((e as Error).message);
       setSubmitting(false);
@@ -293,8 +294,8 @@ export function CheckoutPage() {
             <span>{formatUsd(cart.total)}</span>
           </div>
           <p className="meta" style={{ marginTop: 12 }}>
-            El pago se coordina por Zelle después de confirmar. Te mostraremos las instrucciones en
-            la página siguiente.
+            Al confirmar te llevamos a la pasarela de pago para cobrar con tarjeta. El pedido no se
+            procesa hasta que el pago se complete.
           </p>
           <button
             type="submit"
