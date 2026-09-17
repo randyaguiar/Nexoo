@@ -87,7 +87,8 @@ export interface Product {
   name: string;
   description: string | null;
   priceUsd: number;
-  photoUrl: string | null;
+  /** Hasta tres; la primera es la que sale en la tarjeta del catálogo. */
+  photoUrls: string[];
   available: boolean;
   /** Unidades en inventario; el trabajador es quien lo mantiene al día. */
   stock: number;
@@ -200,7 +201,7 @@ export interface ProductInput {
   priceUsd: number | null;
   /** El precio mayorista que declara el negocio. */
   costUsd: number | null;
-  photoUrl: string | null;
+  photoUrls: string[];
   available: boolean;
   stock: number;
 }
@@ -394,3 +395,6 @@ export interface SettlementPayment {
   payoutAmount: number | null;
   notes: string;
 }
+
+/** Fotos por producto; más de tres no aporta y encarece la carga del catálogo. */
+export const MAX_PRODUCT_PHOTOS = 3;

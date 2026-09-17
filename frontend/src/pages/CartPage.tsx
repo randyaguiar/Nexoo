@@ -62,7 +62,9 @@ export function CartPage() {
       <div className="card">
         {cart.lines.map(({ product, quantity }) => (
           <div key={product.id} className="cart-line">
-            {product.photoUrl && <img src={product.photoUrl} alt={product.name} loading="lazy" />}
+            {product.photoUrls[0] && (
+              <img src={product.photoUrls[0]} alt={product.name} loading="lazy" />
+            )}
             <div className="grow">
               <strong>{product.name}</strong>
               <p className="meta">{formatUsd(product.priceUsd)} c/u</p>

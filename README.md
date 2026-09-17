@@ -74,6 +74,18 @@ quedar al menos un `owner` y nadie puede degradarse ni eliminarse a sí mismo.
 Negocios y productos con pedidos asociados no se pueden borrar (lo impide la clave foránea): el
 panel los desactiva en su lugar.
 
+### Fotos de producto
+
+Hasta tres por producto, en `products.photo_urls`, subidas al bucket `product-photos`. La primera es
+la que sale en la tarjeta del catálogo; el resto aparecen como miniaturas que la sustituyen.
+
+La ruta del archivo empieza por el uuid del negocio y la policy del bucket compara ese tramo con el
+negocio de la sesión, así que ninguno puede escribir en la carpeta de otro. (El bucket de logos, más
+antiguo, solo comprueba `is_admin()`: cualquier usuario del panel puede tocar los de todos.)
+
+Quitar una foto de un producto no borra el archivo del bucket: la misma URL podría estar en uso y
+dejarla rota sería peor que ocupar unos kilobytes de más.
+
 ### Precios y liquidaciones
 
 El negocio declara su precio mayorista (`products.cost_usd`) y la plataforma fija el público

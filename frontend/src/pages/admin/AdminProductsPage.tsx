@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../../api/client';
 import {
   LOW_STOCK_THRESHOLD,
+  MAX_PRODUCT_PHOTOS,
   isGlobalRole,
   suggestedPrice,
   type Business,
@@ -16,6 +17,7 @@ import {
   PencilIcon,
   PlusIcon,
   TrashIcon,
+  UploadIcon,
 } from '../../components/Icon';
 import { Modal } from '../../components/Modal';
 import { formatUsd } from '../../components/Money';
@@ -26,7 +28,7 @@ const emptyForm = (businessId: string): ProductInput => ({
   description: '',
   priceUsd: null,
   costUsd: null,
-  photoUrl: '',
+  photoUrls: [],
   available: true,
   stock: 0,
 });
@@ -49,6 +51,8 @@ export function AdminProductsPage() {
   const markupPct = products[0]?.defaultMarkupPct ?? 30;
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -90,6 +94,35 @@ export function AdminProductsPage() {
   const set = <K extends keyof ProductInput>(key: K, value: ProductInput[K]) =>
     setForm((current) => ({ ...current, [key]: value }));
 
+  const uploadPhoto = async (file: File | undefined) => {
+    if (!file) return;
+    setUploadingPhoto(true);
+    try {
+      const url = await api.admin.uploadProductPhoto(selectedBusinessId, file);
+      setForm((current) => ({
+        ...current,
+        photoUrls: [...current.photoUrls, url].slice(0, MAX_PRODUCT_PHOTOS),
+      }));
+      setError(null);
+    } catch (e) {
+      setError(`No se pudo subir la foto: ${(e as Error).message}`);
+    } finally {
+      setUploadingPhoto(false);
+      // Permite volver a elegir el mismo archivo tras un fallo.
+      if (photoInputRef.current) photoInputRef.current.value = '';
+    }
+  };
+
+  /**
+   * Solo la quita del producto. El archivo se queda en el bucket: borrarlo aquí
+   * dejaría rota la foto de un producto que todavía la esté usando.
+   */
+  const removePhoto = (photo: string) =>
+    setForm((current) => ({
+      ...current,
+      photoUrls: current.photoUrls.filter((p) => p !== photo),
+    }));
+
   const closeForm = () => {
     setForm(emptyForm(selectedBusinessId));
     setEditingId(null);
@@ -106,7 +139,7 @@ export function AdminProductsPage() {
     event.preventDefault();
     const payload: ProductInput = {
       ...form,
-      photoUrl: form.photoUrl?.trim() ? form.photoUrl.trim() : null,
+      photoUrls: form.photoUrls,
       description: form.description?.trim() ? form.description.trim() : null,
     };
 
@@ -132,7 +165,7 @@ export function AdminProductsPage() {
       description: product.description ?? '',
       priceUsd: product.priceUsd,
       costUsd: product.costUsd,
-      photoUrl: product.photoUrl ?? '',
+      photoUrls: product.photoUrls,
       available: product.available,
       stock: product.stock,
     });
@@ -339,15 +372,42 @@ export function AdminProductsPage() {
               />
             </div>
             <div className="field">
-              <label htmlFor="photoUrl">URL de la foto</label>
-              <input
-                id="photoUrl"
-                type="url"
-                disabled={!canManageCatalog}
-                maxLength={1000}
-                value={form.photoUrl ?? ''}
-                onChange={(e) => set('photoUrl', e.target.value)}
-              />
+              <span className="field-label">Fotos</span>
+              <div className="product-photo-editor">
+                {form.photoUrls.map((photo) => (
+                  <div key={photo} className="product-photo-slot">
+                    <img src={photo} alt="" />
+                    {canManageCatalog && (
+                      <button
+                        type="button"
+                        className="icon-button danger"
+                        title="Quitar foto"
+                        onClick={() => removePhoto(photo)}
+                      >
+                        <CloseIcon />
+                      </button>
+                    )}
+                  </div>
+                ))}
+                {canManageCatalog && form.photoUrls.length < MAX_PRODUCT_PHOTOS && (
+                  <>
+                    <input
+                      id="productPhoto"
+                      ref={photoInputRef}
+                      type="file"
+                      className="visually-hidden"
+                      accept="image/png,image/jpeg,image/webp"
+                      onChange={(e) => void uploadPhoto(e.target.files?.[0])}
+                    />
+                    <label htmlFor="productPhoto" className="product-photo-slot is-empty">
+                      {uploadingPhoto ? 'Subiendo…' : <UploadIcon size={20} />}
+                    </label>
+                  </>
+                )}
+              </div>
+              <p className="field-hint">
+                Hasta {MAX_PRODUCT_PHOTOS}. La primera es la que se ve en el catálogo.
+              </p>
             </div>
             <div className="field">
               <label htmlFor="productDescription">Descripción</label>

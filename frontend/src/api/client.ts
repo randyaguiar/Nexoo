@@ -62,7 +62,7 @@ interface ProductRow {
   name: string;
   description: string | null;
   price_usd: number;
-  photo_url: string | null;
+  photo_urls: string[] | null;
   available: boolean;
   stock: number | null;
 }
@@ -100,7 +100,7 @@ const toProduct = (row: ProductRow): Product => ({
   name: row.name,
   description: row.description,
   priceUsd: Number(row.price_usd),
-  photoUrl: row.photo_url,
+  photoUrls: row.photo_urls ?? [],
   available: row.available,
   stock: Number(row.stock ?? 0),
 });
@@ -179,7 +179,7 @@ const toRow = (input: ProductInput) => ({
   name: input.name,
   description: input.description,
   cost_usd: input.costUsd,
-  photo_url: input.photoUrl,
+  photo_urls: input.photoUrls,
   available: input.available,
   stock: input.stock,
   ...(input.priceUsd === null ? {} : { price_usd: input.priceUsd }),
@@ -428,6 +428,7 @@ async function invokeManageAdmins(body: Record<string, unknown>): Promise<void> 
 }
 
 const BUSINESS_LOGOS_BUCKET = 'business-logos';
+const PRODUCT_PHOTOS_BUCKET = 'product-photos';
 
 export const api = {
   async listProvinces(): Promise<ProvinceRef[]> {
@@ -913,6 +914,24 @@ export const api = {
       const { data, error } = await query;
       if (error) fail(error);
       return (data ?? []).map((row) => toProductPricing(row as ProductPricingRow));
+    },
+
+    /**
+     * Sube una foto de producto y devuelve su URL. La carpeta es el uuid del
+     * negocio: la policy del bucket compara ese primer tramo de la ruta con el
+     * negocio de la sesión, así que nadie escribe en la carpeta de otro.
+     */
+    async uploadProductPhoto(businessId: string, file: File): Promise<string> {
+      const extension = file.name.split('.').pop()?.toLowerCase() ?? 'jpg';
+      const path = `${businessId}/${crypto.randomUUID()}.${extension}`;
+
+      const { error } = await supabase.storage
+        .from(PRODUCT_PHOTOS_BUCKET)
+        .upload(path, file, { contentType: file.type, upsert: false });
+      if (error) throw new Error(error.message);
+
+      const { data } = supabase.storage.from(PRODUCT_PHOTOS_BUCKET).getPublicUrl(path);
+      return data.publicUrl;
     },
 
     async createProduct(input: ProductInput): Promise<void> {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../api/client';
+import { ProductPhotos } from '../components/ProductPhotos';
 import type { BusinessDetail } from '../api/types';
 import { useCart } from '../cart/CartContext';
 import { Money } from '../components/Money';
@@ -118,14 +119,7 @@ export function BusinessPage() {
       <div className="grid">
         {products.map((product) => (
           <article key={product.id} className="card product-card">
-            {product.photoUrl && (
-              <img
-                className="product-photo"
-                src={product.photoUrl}
-                alt={product.name}
-                loading="lazy"
-              />
-            )}
+            <ProductPhotos photos={product.photoUrls} alt={product.name} />
             <div className="product-body">
               <h3>{product.name}</h3>
               {product.description && <p className="meta">{product.description}</p>}
