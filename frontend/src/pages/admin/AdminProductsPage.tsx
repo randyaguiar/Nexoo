@@ -151,7 +151,9 @@ export function AdminProductsPage() {
     }
   };
 
-  if (businesses.length === 0) {
+  // El rol global necesita al menos un negocio que elegir; el de negocio ya
+  // trae el suyo en la sesión y no depende de esa lista.
+  if (!selectedBusinessId) {
     return (
       <>
         {error && <div className="alert error">{error}</div>}
