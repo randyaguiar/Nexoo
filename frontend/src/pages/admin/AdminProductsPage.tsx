@@ -40,7 +40,8 @@ export function AdminProductsPage() {
   const isGlobal = admin ? isGlobalRole(admin.role) : false;
 
   const [businesses, setBusinesses] = useState<Business[]>([]);
-  const [selectedBusinessId, setSelectedBusinessId] = useState<string>('');
+  // El admin de negocio y el trabajador trabajan siempre sobre el suyo.
+  const [selectedBusinessId, setSelectedBusinessId] = useState<string>(admin?.businessId ?? '');
   const [products, setProducts] = useState<ProductPricing[]>([]);
   const [form, setForm] = useState<ProductInput>(emptyForm(''));
   // El margen del negocio llega con sus productos; sin ninguno todavía, el
@@ -51,6 +52,10 @@ export function AdminProductsPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Sin selector no hace falta la lista: el negocio ya viene del rol. Pedirla
+    // además enseñaría los nombres de todo el marketplace.
+    if (!isGlobal) return;
+
     api.admin
       .listBusinesses()
       .then((data) => {
@@ -60,7 +65,7 @@ export function AdminProductsPage() {
         }
       })
       .catch((e: Error) => setError(e.message));
-  }, []);
+  }, [isGlobal]);
 
   const loadProducts = useCallback(async (businessId: string) => {
     if (!businessId) {
@@ -160,20 +165,24 @@ export function AdminProductsPage() {
       {error && <div className="alert error">{error}</div>}
 
       <div className="page-toolbar">
-        <div className="field" style={{ maxWidth: 360, marginBottom: 0 }}>
-          <label htmlFor="businessFilter">Negocio</label>
-          <select
-            id="businessFilter"
-            value={selectedBusinessId}
-            onChange={(e) => setSelectedBusinessId(e.target.value)}
-          >
-            {businesses.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        {isGlobal ? (
+          <div className="field" style={{ maxWidth: 360, marginBottom: 0 }}>
+            <label htmlFor="businessFilter">Negocio</label>
+            <select
+              id="businessFilter"
+              value={selectedBusinessId}
+              onChange={(e) => setSelectedBusinessId(e.target.value)}
+            >
+              {businesses.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : (
+          <h3 className="form-title">Tus productos</h3>
+        )}
         {canManageCatalog && (
           <button type="button" onClick={openCreate}>
             <PlusIcon /> Nuevo producto
