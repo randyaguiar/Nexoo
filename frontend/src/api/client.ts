@@ -17,6 +17,7 @@ import type {
   Order,
   OrderStatus,
   Product,
+  ProductDetail,
   ProductInput,
   Province,
   ProvinceInput,
@@ -519,6 +520,40 @@ export const api = {
     const products = ((productRows ?? []) as ProductRow[]).map(toProduct);
 
     return { business: toBusiness(data as unknown as BusinessRow, products.length), products };
+  },
+
+  /**
+   * El producto y su negocio. Sale de `product_catalog`, así que un producto sin
+   * precio público —o de un negocio inactivo— simplemente no existe para esta
+   * página, igual que no aparece en el catálogo.
+   */
+  async getProduct(id: string): Promise<ProductDetail> {
+    const { data, error } = await supabase
+      .from('product_catalog')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (error) fail(error);
+    if (!data) throw new Error('Producto no encontrado.');
+
+    const product = toProduct(data as ProductRow);
+
+    const { data: businessRow, error: businessError } = await supabase
+      .from('business_catalog')
+      .select(
+        'id, name, description, logo_url, province, province_name, municipality_id, municipality, category_ids, category_names, contact_phone, active, product_count',
+      )
+      .eq('id', product.businessId)
+      .maybeSingle();
+
+    if (businessError) fail(businessError);
+    if (!businessRow) throw new Error('Producto no encontrado.');
+
+    return {
+      product,
+      business: toBusiness(businessRow as unknown as BusinessRow, Number(businessRow.product_count)),
+    };
   },
 
   /**

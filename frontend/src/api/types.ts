@@ -125,6 +125,12 @@ export interface BusinessDetail {
   products: Product[];
 }
 
+/** Un producto con el negocio que lo vende: lo que hace falta para su página. */
+export interface ProductDetail {
+  product: Product;
+  business: Business;
+}
+
 export interface OrderItem {
   id: string;
   productId: string;

@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../api/client';
-import { ProductPhotos } from '../components/ProductPhotos';
 import type { BusinessDetail } from '../api/types';
 import { useCart } from '../cart/CartContext';
 import { Money } from '../components/Money';
@@ -119,9 +118,20 @@ export function BusinessPage() {
       <div className="grid">
         {products.map((product) => (
           <article key={product.id} className="card product-card">
-            <ProductPhotos photos={product.photoUrls} alt={product.name} />
+            {product.photoUrls[0] && (
+              <Link to={`/producto/${product.id}`} tabIndex={-1} aria-hidden="true">
+                <img
+                  className="product-photo"
+                  src={product.photoUrls[0]}
+                  alt=""
+                  loading="lazy"
+                />
+              </Link>
+            )}
             <div className="product-body">
-              <h3>{product.name}</h3>
+              <h3>
+                <Link to={`/producto/${product.id}`}>{product.name}</Link>
+              </h3>
               {product.description && <p className="meta">{product.description}</p>}
               <Money value={product.priceUsd} />
               {product.stock === 0 && <p className="meta">Agotado</p>}

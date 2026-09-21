@@ -1734,3 +1734,72 @@ label.button {
 .product-photo-slot.is-empty:hover {
   border-color: var(--nexoo-primary);
 }
+
+/* Página de producto ------------------------------------------------------- */
+
+.product-detail {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-6);
+  align-items: start;
+}
+
+@media (max-width: 760px) {
+  .product-detail {
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+  }
+}
+
+/* La galería grande enseña la foto entera: en la tarjeta se recorta a 4/3
+   para que todas midan igual, pero aquí eso cortaría parte del producto. */
+.product-photos.is-large .product-photo {
+  aspect-ratio: 1 / 1;
+  object-fit: contain;
+  border-radius: var(--nexoo-radius);
+  border: 1px solid var(--nexoo-border);
+}
+
+.product-photos.is-large .product-thumbs {
+  padding: var(--space-2) 0 0;
+}
+
+.product-photos.is-large .product-thumb {
+  width: 64px;
+  height: 64px;
+}
+
+.product-detail-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+.product-detail-info .price {
+  font-size: 1.6rem;
+}
+
+.product-detail-info .alert,
+.product-detail-info button:not(.link) {
+  align-self: stretch;
+}
+
+.quantity-picker {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.quantity-picker input {
+  width: 96px;
+}
+
+.product-body h3 a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.product-body h3 a:hover {
+  text-decoration: underline;
+}

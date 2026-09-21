@@ -12,6 +12,7 @@ import { CheckoutPage } from './pages/CheckoutPage';
 import { LoginPage } from './pages/LoginPage';
 import { MyOrdersPage } from './pages/MyOrdersPage';
 import { OrderConfirmationPage } from './pages/OrderConfirmationPage';
+import { ProductPage } from './pages/ProductPage';
 import { RegisterBusinessPage } from './pages/RegisterBusinessPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { AdminActivityPage } from './pages/admin/AdminActivityPage';
@@ -36,6 +37,7 @@ export function App() {
         <Route element={<Layout />}>
           <Route index element={<CatalogPage />} />
           <Route path="negocios/:id" element={<BusinessPage />} />
+          <Route path="producto/:id" element={<ProductPage />} />
           <Route path="carrito" element={<CartPage />} />
           <Route path="checkout" element={<CheckoutPage />} />
           <Route path="pedido/:id" element={<OrderConfirmationPage />} />
