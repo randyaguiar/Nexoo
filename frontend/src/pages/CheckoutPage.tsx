@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
-import type { Municipality, Province, ProvinceRef } from '../api/types';
+import { isBusinessScoped, type Municipality, type Province, type ProvinceRef } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
 import { useCart } from '../cart/CartContext';
 import { formatUsd } from '../components/Money';
@@ -32,7 +32,7 @@ const initialForm: FormState = {
 
 export function CheckoutPage() {
   const cart = useCart();
-  const { user } = useAuth();
+  const { user, admin } = useAuth();
   const [form, setForm] = useState<FormState>(() => ({
     ...initialForm,
     // El perfil de la cuenta (Mi cuenta) rellena los datos del comprador.
@@ -86,6 +86,26 @@ export function CheckoutPage() {
       cancelled = true;
     };
   }, [selectedProvince]);
+
+  // Comprador y negocio son cuentas separadas: el trigger de `orders` rechazaría
+  // el pedido igual, pero aquí se dice antes de pedir los datos del destinatario.
+  if (admin && isBusinessScoped(admin.role)) {
+    return (
+      <>
+        <h1 className="page-title">Confirmar pedido</h1>
+        <div className="empty-state">
+          <h3>Esta cuenta gestiona un negocio</h3>
+          <p>
+            Las cuentas de negocio no hacen pedidos en Nexoo. Si quieres comprar, entra con una
+            cuenta de comprador.
+          </p>
+          <Link className="button" to="/admin/pedidos">
+            Ver los pedidos de tu negocio
+          </Link>
+        </div>
+      </>
+    );
+  }
 
   if (cart.lines.length === 0) {
     return (

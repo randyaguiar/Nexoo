@@ -29,6 +29,8 @@ export function RegisterBusinessPage() {
   const [municipalities, setMunicipalities] = useState<Municipality[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [application, setApplication] = useState<BusinessApplication | null>(null);
+  /** Comprador y negocio son cuentas separadas: con pedidos no se puede solicitar. */
+  const [hasOrders, setHasOrders] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [checking, setChecking] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -41,10 +43,11 @@ export function RegisterBusinessPage() {
     }
 
     let cancelled = false;
-    api.businessApplications
-      .mine()
-      .then((row) => {
-        if (!cancelled) setApplication(row);
+    Promise.all([api.businessApplications.mine(), api.auth.hasBuyerOrders()])
+      .then(([row, bought]) => {
+        if (cancelled) return;
+        setApplication(row);
+        setHasOrders(bought);
       })
       .catch((e: Error) => {
         if (!cancelled) setError(e.message);
@@ -164,6 +167,23 @@ export function RegisterBusinessPage() {
             que aparezca en el catálogo.
           </p>
         )}
+      </div>
+    );
+  }
+
+  // La policy rechazaría el insert igual; esto lo explica antes de rellenar nada.
+  if (hasOrders) {
+    return (
+      <div className="card" style={{ maxWidth: 520, margin: '40px auto' }}>
+        <h1 className="page-title">Esta cuenta es de comprador</h1>
+        <p>
+          Ya has hecho pedidos con ella, y en Nexoo una cuenta compra o vende, pero no las dos
+          cosas: así tus pedidos y los de tu negocio no se mezclan.
+        </p>
+        <p>
+          Para dar de alta tu negocio, <Link to="/registro">crea una cuenta nueva</Link> con otro
+          correo y solicita el alta desde ahí.
+        </p>
       </div>
     );
   }

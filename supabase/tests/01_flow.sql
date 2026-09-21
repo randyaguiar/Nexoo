@@ -186,3 +186,82 @@ end $$;
 set request.jwt.claim.sub = '11111111-1111-1111-1111-111111111111';
 select 'D OK: el owner sigue aprobando -> '||public.approve_business_application(
   (select id from public.business_applications where status='pending' limit 1));
+
+-- Comprador y negocio son cuentas separadas -----------------------------------
+
+-- E) El negocio no puede hacer pedidos con su cuenta del panel.
+set role authenticated;
+set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
+do $$ begin
+  begin
+    perform public.create_order(jsonb_build_object(
+      'buyerName','Dueño','buyerEmail','duenyo@negocio.cu','buyerPhone','+5350000000',
+      'recipientName','Luis','recipientPhone','+5352','recipientProvince','LaHabana',
+      'recipientMunicipality','Playa','recipientAddress','Calle 1',
+      'items', jsonb_build_array(jsonb_build_object(
+        'productId', (select id from public.products where name='Pastel'), 'quantity', 1))
+    ));
+    raise exception 'FALLO E: una cuenta de negocio hizo un pedido';
+  exception when sqlstate '42501' then null;
+  end;
+end $$;
+\echo 'E OK: la cuenta de negocio no puede comprar'
+
+-- F) Quien ya compró no puede solicitar el alta de un negocio.
+reset role;
+insert into auth.users (id, email) values
+  ('66666666-6666-6666-6666-666666666666','comprador@x.com') on conflict do nothing;
+
+set role authenticated;
+set request.jwt.claim.sub = '66666666-6666-6666-6666-666666666666';
+select public.create_order(jsonb_build_object(
+  'buyerName','Ana','buyerEmail','comprador@x.com','buyerPhone','+1305',
+  'recipientName','Luis','recipientPhone','+5352','recipientProvince','LaHabana',
+  'recipientMunicipality','Playa','recipientAddress','Calle 1',
+  'items', jsonb_build_array(jsonb_build_object(
+    'productId', (select id from public.products where name='Pastel'), 'quantity', 1))
+)) as compra \gset
+
+do $$ begin
+  begin
+    insert into public.business_applications
+      (user_id, contact_email, name, municipality_id, contact_phone)
+    values ('66666666-6666-6666-6666-666666666666','comprador@x.com','Negocio del comprador',
+            '44444444-4444-4444-4444-444444444444','+53');
+    raise exception 'FALLO F: un comprador con pedidos pidió el alta';
+  exception when sqlstate '42501' then null;
+  end;
+end $$;
+\echo 'F OK: con pedidos no se puede solicitar el alta'
+
+-- G) Y si compra con la solicitud ya pendiente, tampoco se aprueba.
+reset role;
+insert into auth.users (id, email) values
+  ('77777777-7777-7777-7777-777777777777','listillo@x.com') on conflict do nothing;
+
+set role authenticated;
+set request.jwt.claim.sub = '77777777-7777-7777-7777-777777777777';
+insert into public.business_applications
+  (user_id, contact_email, name, municipality_id, contact_phone)
+values ('77777777-7777-7777-7777-777777777777','listillo@x.com','Negocio Tardío',
+        '44444444-4444-4444-4444-444444444444','+53');
+
+select public.create_order(jsonb_build_object(
+  'buyerName','Listillo','buyerEmail','listillo@x.com','buyerPhone','+1305',
+  'recipientName','Luis','recipientPhone','+5352','recipientProvince','LaHabana',
+  'recipientMunicipality','Playa','recipientAddress','Calle 1',
+  'items', jsonb_build_array(jsonb_build_object(
+    'productId', (select id from public.products where name='Pastel'), 'quantity', 1))
+)) as tardio \gset
+
+set request.jwt.claim.sub = '11111111-1111-1111-1111-111111111111';
+do $$ begin
+  begin
+    perform public.approve_business_application(
+      (select id from public.business_applications
+        where user_id='77777777-7777-7777-7777-777777777777'));
+    raise exception 'FALLO G: se aprobó una cuenta que ya había comprado';
+  exception when sqlstate '22023' then null;
+  end;
+end $$;
+\echo 'G OK: no se aprueba una cuenta con pedidos'

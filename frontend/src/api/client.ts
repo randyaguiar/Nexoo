@@ -639,6 +639,24 @@ export const api = {
       if (error) fail(error);
       return ((data ?? []) as unknown as OrderRow[]).map(toOrder);
     },
+
+    /**
+     * Si la sesión ha comprado alguna vez. Decide si puede solicitar el alta de
+     * un negocio: comprador y negocio son cuentas separadas. Filtra por user_id
+     * a mano porque una cuenta del panel también ve los pedidos de su negocio.
+     */
+    async hasBuyerOrders(): Promise<boolean> {
+      const { data: auth } = await supabase.auth.getUser();
+      if (!auth.user) return false;
+
+      const { count, error } = await supabase
+        .from('orders')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', auth.user.id);
+
+      if (error) fail(error);
+      return (count ?? 0) > 0;
+    },
   },
 
   /**
@@ -664,6 +682,13 @@ export const api = {
         // El índice parcial impide una segunda solicitud viva por persona.
         if (error.code === '23505') {
           throw new Error('Ya tienes una solicitud pendiente de revisión.');
+        }
+        // La policy no dice por qué rechaza. Aquí el motivo es siempre el
+        // mismo: la cuenta ya compró, o ya gestiona un negocio.
+        if (error.code === '42501') {
+          throw new Error(
+            'Esta cuenta ya ha hecho pedidos como compradora. Para vender en Nexoo hace falta una cuenta distinta.',
+          );
         }
         fail(error);
       }

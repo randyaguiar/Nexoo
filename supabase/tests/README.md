@@ -3,7 +3,8 @@
 Las migraciones se aplican a un Postgres local y se ejecuta el flujo completo:
 alta de negocio, precios, pedido y liquidación, más los intentos que deben
 fallar (un comprador aprobando su propia solicitud, tocando precios o
-liquidando).
+liquidando; una cuenta de negocio comprando; un comprador con pedidos pidiendo
+el alta de un negocio).
 
 Requiere `postgresql-16` instalado; no hace falta Docker ni el CLI de Supabase.
 
