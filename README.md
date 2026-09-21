@@ -23,7 +23,7 @@ supabase/seed.sql    catálogo de prueba
 | Cuentas de compradores   | Supabase Auth (email + contraseña); `orders.user_id`         |
 | Login y panel admin      | Supabase Auth + policies contra la tabla `admins`            |
 | Gestión de usuarios      | Edge Function `manage-admins` (service role) + rol `owner`   |
-| Aviso de pedido al admin | Database Webhook → Edge Function `notify-new-order` → Resend |
+| Correos del pedido       | `stripe-webhook` → Edge Function `notify-order-paid` → Resend |
 
 ## Modelo de datos
 
@@ -193,7 +193,7 @@ si esa URL no está en la lista, Supabase la ignora y usa el Site URL.
 
 Sin SMTP propio los correos salen como *Supabase Auth &lt;noreply@mail.app.supabase.io&gt;*, **solo
 llegan a las direcciones del equipo del proyecto** y hay un tope de 2 por hora: sirve para probar,
-no para compradores reales. Con Resend (el mismo proveedor que usa `notify-new-order`):
+no para compradores reales. Con Resend (el mismo proveedor que usa `notify-order-paid`):
 
 1. Resend → *Domains* → añade el dominio y publica los registros DNS hasta que quede *Verified*.
 2. Supabase → Authentication → **Emails** → *SMTP Settings* (`/dashboard/project/_/auth/smtp`) →
@@ -235,16 +235,27 @@ Las dos funciones van con `verify_jwt = false` (`supabase/config.toml`): a la pr
 comprador que puede no tener cuenta, y la segunda la llama Stripe, que no manda un JWT sino su
 propia firma.
 
-### 6. Aviso por email (opcional)
+### 6. Correos del pedido
+
+Cuando Stripe confirma el cobro, `stripe-webhook` llama a `notify-order-paid`, que manda tres
+correos: el aviso interno, la confirmación al comprador y la orden de preparación a la tienda. Cada
+uno ve lo suyo —el comprador no ve lo que cobra la tienda, la tienda no ve lo que pagó el
+comprador— y el margen solo aparece en el interno.
 
 ```bash
-supabase functions deploy notify-new-order
+supabase functions deploy notify-order-paid
 supabase secrets set RESEND_API_KEY=... ADMIN_EMAIL=admin@nexoo.app FROM_EMAIL='Nexoo <pedidos@tudominio.com>'
 ```
 
-Luego Database → Webhooks → nuevo webhook: tabla `public.orders`, evento `INSERT`, tipo *Supabase
-Edge Functions*, función `notify-new-order`. Sin `RESEND_API_KEY` el pedido se crea igual y el aviso
-solo queda en el log de la función.
+`SITE_URL` (la del cobro) se reaprovecha para el enlace al pedido. La dirección de la tienda sale de
+`admins`, no de `businesses`: esa tabla la lee cualquiera sin sesión.
+
+Sin `RESEND_API_KEY` el pedido se cobra igual y el contenido de los correos queda en el log de la
+función.
+
+> Antes esto era `notify-new-order`, colgado de un Database Webhook sobre el `INSERT` en `orders`.
+> Con Stripe ese momento dejó de servir: un pedido nace como `PendingPayment` y puede no pagarse
+> nunca. Si vienes de esa versión, borra el webhook (Integrations → Webhooks) y la función.
 
 ### 7. Frontend
 

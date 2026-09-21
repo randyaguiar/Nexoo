@@ -1,8 +1,9 @@
 project_id = "nexoo"
 
-[functions.notify-new-order]
-# El webhook de la base de datos llama la función con la service role key,
-# no con un JWT de usuario.
+[functions.notify-order-paid]
+# La función comprueba ella misma que la cabecera sea exactamente la service
+# role key. Eso es más estricto que verify_jwt, que daría por bueno el JWT de
+# cualquier usuario con sesión, y no depende de que esa clave sea un JWT.
 verify_jwt = false
 
 [functions.manage-admins]

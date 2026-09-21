@@ -121,5 +121,19 @@ Deno.serve(async (request: Request): Promise<Response> => {
     return new Response('retry', { status: 500 });
   }
 
+  // Los correos solo cuando el pedido acaba de pasar a Paid: en un reintento de
+  // Stripe `mark_order_paid` devuelve false y no se repiten. Un fallo aquí no
+  // puede tumbar el webhook —el cobro ya está hecho—, así que solo se registra.
+  if (data === true) {
+    try {
+      const { error: mailError } = await admin.functions.invoke('notify-order-paid', {
+        body: { orderId },
+      });
+      if (mailError) console.error('No se pudieron mandar los correos:', mailError.message);
+    } catch (e) {
+      console.error('No se pudieron mandar los correos:', (e as Error).message);
+    }
+  }
+
   return new Response(JSON.stringify({ orderId, updated: data }), { status: 200 });
 });
