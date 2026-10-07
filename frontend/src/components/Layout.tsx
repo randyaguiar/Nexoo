@@ -26,7 +26,7 @@ export function Layout() {
             </span>
           </Link>
           <nav className="header-nav" aria-label="Principal">
-            <Link to="/">
+            <Link to="/" className="nav-catalog">
               <GridIcon size={16} />
               Catálogo
             </Link>
