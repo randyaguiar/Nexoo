@@ -1,7 +1,7 @@
 # Nexoo
 
 Plataforma para comprar en negocios locales de Cuba (Pinar del Río y La Habana) desde EE.UU. y
-entregar el pedido a un familiar en la isla. El comprador paga con tarjeta en Stripe; la plataforma
+entregar el pedido a un familiar en la isla. El comprador paga con tarjeta; la plataforma
 liquida después a cada negocio.
 
 ## Arquitectura
@@ -23,7 +23,7 @@ supabase/seed.sql    catálogo de prueba
 | Cuentas de compradores   | Supabase Auth (email + contraseña); `orders.user_id`         |
 | Login y panel admin      | Supabase Auth + policies contra la tabla `admins`            |
 | Gestión de usuarios      | Edge Function `manage-admins` (service role) + rol `owner`   |
-| Correos del pedido       | `stripe-webhook` → Edge Function `notify-order-paid` → Resend |
+| Correos del pedido       | el webhook de la pasarela → Edge Function `notify-order-paid` → Resend |
 
 ## Modelo de datos
 
@@ -74,25 +74,36 @@ quedar al menos un `owner` y nadie puede degradarse ni eliminarse a sí mismo.
 Negocios y productos con pedidos asociados no se pueden borrar (lo impide la clave foránea): el
 panel los desactiva en su lugar.
 
-### Cobro con Stripe
+### Cobro
 
 El pedido se crea antes de pagar, porque `create_order()` es quien reserva el stock; nace como
-`PendingPayment` y solo pasa a `Paid` cuando Stripe confirma el cobro por webhook. Volver del
+`PendingPayment` y solo pasa a `Paid` cuando la pasarela confirma el cobro por webhook. Volver del
 checkout a la web no prueba nada —esa URL se puede escribir a mano—, así que la página de
 confirmación enseña lo que diga la base de datos, no lo que diga el parámetro de vuelta.
 
-`create-checkout-session` lee el importe y las líneas de la base de datos, nunca del navegador: si
-vinieran del cliente se podría pagar un pedido de 300 USD por uno. Manda una `Idempotency-Key` con
-el id del pedido, así que pulsar dos veces no abre dos cobros.
+Hay dos pasarelas y una activa a la vez, en `payment_settings`: **Stripe** cobra en dólares y
+**TropiPay** en euros. El pedido se guarda siempre en dólares y lo que se anota es cómo se cobró
+(`payment_provider`, `charged_currency`, `charged_amount`, `fx_rate`), igual que en las
+liquidaciones en CUP. Lo que se le paga al negocio no depende de la pasarela.
 
-`stripe-webhook` comprueba la firma `t=…,v1=…` de Stripe con HMAC-SHA256 y compara en tiempo
-constante; sin eso, quien conociera la URL podría declarar pagado cualquier pedido. Solo reacciona a
-`checkout.session.completed`, y `mark_order_paid()` filtra por estado, de modo que el reintento de
-un evento ya procesado no cambia nada. Esa función es la única vía para dar por pagado un pedido y
-está concedida solo a la `service_role`.
+`create-checkout-session` lee el importe y las líneas de la base de datos, nunca del navegador: si
+vinieran del cliente se podría pagar un pedido de 300 USD por uno. Con Stripe manda una
+`Idempotency-Key` con el id del pedido; con TropiPay el enlace es `singleUse`. En los dos casos,
+pulsar dos veces no abre dos cobros.
+
+Los dos webhooks acaban en `mark_order_paid()`, que filtra por estado: el reintento de un evento ya
+procesado no cambia nada. Esa función es la única vía para dar por pagado un pedido y está
+concedida solo a la `service_role`.
+
+Lo que cambia entre los dos es cómo se comprueba que el aviso es auténtico. `stripe-webhook`
+verifica la firma `t=…,v1=…` con HMAC-SHA256 y compara en tiempo constante. Para TropiPay no hay
+documentación suficiente del esquema de firma, así que `tropipay-webhook` no se fía del cuerpo del
+aviso: lo usa solo para saber qué cobro mirar y vuelve a leerlo contra la API de TropiPay con
+nuestras credenciales, comprobando además que el importe coincida con el que abrimos. Un aviso
+falsificado no puede dar nada por pagado.
 
 Zelle sigue en el proyecto, pero como forma de **pagarle al negocio**
-(`business_payout_accounts.method = 'zelle_us'`). Eso es dinero saliendo; Stripe es el que entra.
+(`business_payout_accounts.method = 'zelle_us'`). Eso es dinero saliendo.
 
 ### Fotos de producto
 
@@ -215,25 +226,51 @@ El asunto y el cuerpo se editan en Authentication → **Emails** → *Templates*
 cambia la plantilla, hay que conservar `{{ .ConfirmationURL }}`; la variante con
 `{{ .TokenHash }}` también funciona porque `/auth/confirmado` canjea los dos formatos.
 
-### 5. Cobro con Stripe
+### 5. Cobro
 
-1. Stripe → *Developers → API keys* → copia la clave secreta.
-2. Edge Functions → Secrets: `STRIPE_SECRET_KEY` y `SITE_URL` (la URL pública del sitio, sin barra
-   final).
-3. Despliega las funciones:
+Hay dos pasarelas y solo una activa a la vez. La elige el owner en el panel, en **Pagos**
+(`payment_settings`), y `create-checkout-session` la lee al abrir cada cobro. Los pedidos que ya
+estén abiertos siguen con la pasarela con la que nacieron.
 
-   ```bash
-   supabase functions deploy create-checkout-session
-   supabase functions deploy stripe-webhook
-   ```
+El pedido se guarda **siempre en dólares** —precios, costes y liquidaciones no cambian—; lo que se
+anota es en qué moneda y con qué cambio se cobró (`charged_currency`, `charged_amount`, `fx_rate`),
+igual que ya se hacía al pagarle a un negocio en CUP.
 
-4. Stripe → *Developers → Webhooks* → *Add endpoint*:
+```bash
+supabase functions deploy create-checkout-session
+supabase functions deploy stripe-webhook
+supabase functions deploy tropipay-webhook
+```
+
+`SITE_URL` (la URL pública del sitio, sin barra final) hace falta para las dos.
+
+**Stripe** — cobra en dólares.
+
+1. Stripe → *Developers → API keys* → copia la clave secreta y guárdala como `STRIPE_SECRET_KEY`.
+2. Stripe → *Developers → Webhooks* → *Add endpoint*:
    `https://<project-ref>.supabase.co/functions/v1/stripe-webhook`, evento
    `checkout.session.completed`. Copia el *signing secret* y guárdalo como `STRIPE_WEBHOOK_SECRET`.
 
-Las dos funciones van con `verify_jwt = false` (`supabase/config.toml`): a la primera la llama un
-comprador que puede no tener cuenta, y la segunda la llama Stripe, que no manda un JWT sino su
-propia firma.
+**TropiPay** — cobra en euros.
+
+1. Secrets: `TROPIPAY_CLIENT_ID`, `TROPIPAY_CLIENT_SECRET` y `TROPIPAY_API_URL`
+   (`https://sandbox.tropipay.me` para probar). Opcionales: `TROPIPAY_ACCOUNT_ID` si tienes más de
+   una cuenta y `TROPIPAY_REASON_ID` si el motivo por defecto no te sirve.
+2. El aviso de pago no se configura en su panel: la URL se manda en cada cobro
+   (`urlNotification`), apuntando a `tropipay-webhook`.
+3. **Calibración, una sola vez.** Qué valor del campo `state` significa "pagado" no está
+   documentado, así que el webhook no lo adivina: sin `TROPIPAY_PAID_STATES` no marca nada y deja el
+   valor observado en su log. Haz un cobro en sandbox, mira el log de `tropipay-webhook`, y guarda
+   ese número como `TROPIPAY_PAID_STATES` (admite varios separados por comas).
+
+Las tres funciones van con `verify_jwt = false` (`supabase/config.toml`): a la primera la llama un
+comprador que puede no tener cuenta, y a las otras dos las llaman las pasarelas, que no mandan un
+JWT.
+
+> Stripe firma sus avisos con un HMAC que se comprueba. Del esquema de firma de TropiPay no hay
+> documentación suficiente, así que `tropipay-webhook` **no se fía del cuerpo del aviso**: lo usa
+> solo para saber qué cobro mirar, y después vuelve a leer ese cobro contra la API de TropiPay con
+> nuestras credenciales. Un aviso falsificado no puede dar nada por pagado.
 
 ### 6. Correos del pedido
 

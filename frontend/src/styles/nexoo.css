@@ -1839,3 +1839,31 @@ label.button {
 .product-body h3 a:hover {
   text-decoration: underline;
 }
+
+/* Pasarela de cobro ------------------------------------------------------- */
+
+.payment-providers {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.payment-provider {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--nexoo-border);
+  border-radius: var(--nexoo-radius);
+  cursor: pointer;
+}
+
+.payment-provider.is-active {
+  border-color: var(--nexoo-primary);
+  background: var(--nexoo-surface-alt);
+}
+
+.payment-provider > span {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}

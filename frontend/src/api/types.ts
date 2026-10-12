@@ -125,6 +125,32 @@ export interface BusinessDetail {
   products: Product[];
 }
 
+/**
+ * Las pasarelas de cobro. Solo una está activa a la vez y la elige el owner
+ * desde el panel; el pedido se guarda siempre en dólares.
+ */
+export const PAYMENT_PROVIDERS = [
+  {
+    value: 'stripe',
+    label: 'Stripe',
+    detail: 'Cobra en dólares, sin conversión. El comprador paga lo que ve.',
+  },
+  {
+    value: 'tropipay',
+    label: 'TropiPay',
+    detail: 'Cobra en euros: el total del pedido se convierte con el cambio de abajo.',
+  },
+] as const;
+
+export type PaymentProvider = (typeof PAYMENT_PROVIDERS)[number]['value'];
+
+export interface PaymentSettings {
+  provider: PaymentProvider;
+  /** Euros por dólar. Solo se usa con TropiPay. */
+  eurPerUsd: number;
+  updatedAt: string;
+}
+
 /** Un producto con el negocio que lo vende: lo que hace falta para su página. */
 export interface ProductDetail {
   product: Product;

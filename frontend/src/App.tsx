@@ -23,6 +23,7 @@ import { AdminDashboardPage } from './pages/admin/AdminDashboardPage';
 import { AdminLayout } from './pages/admin/AdminLayout';
 import { AdminLoginPage } from './pages/admin/AdminLoginPage';
 import { AdminOrdersPage } from './pages/admin/AdminOrdersPage';
+import { AdminPaymentsPage } from './pages/admin/AdminPaymentsPage';
 import { AdminPlacesPage } from './pages/admin/AdminPlacesPage';
 import { AdminPricingPage } from './pages/admin/AdminPricingPage';
 import { AdminProductsPage } from './pages/admin/AdminProductsPage';
@@ -59,6 +60,7 @@ export function App() {
             <Route path="categorias" element={<AdminCategoriesPage />} />
             <Route path="lugares" element={<AdminPlacesPage />} />
             <Route path="precios" element={<AdminPricingPage />} />
+            <Route path="pagos" element={<AdminPaymentsPage />} />
             <Route path="liquidaciones" element={<AdminSettlementsPage />} />
             <Route path="solicitudes" element={<AdminApplicationsPage />} />
             <Route path="usuarios" element={<AdminUsersPage />} />

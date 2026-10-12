@@ -8,6 +8,7 @@ import {
   InboxIcon,
   MapPinIcon,
   ReceiptIcon,
+  SettingsIcon,
   StoreIcon,
   TagIcon,
   UsersIcon,
@@ -61,6 +62,7 @@ const NAV_ITEMS: { to: string; label: string; Icon: typeof BoxIcon; roles: Admin
     Icon: UsersIcon,
     roles: ['owner', 'business_admin'],
   },
+  { to: '/admin/pagos', label: 'Pagos', Icon: SettingsIcon, roles: ['owner'] },
   { to: '/admin/historial', label: 'Historial', Icon: HistoryIcon, roles: ['owner'] },
 ];
 

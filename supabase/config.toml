@@ -17,3 +17,9 @@ verify_jwt = false
 [functions.stripe-webhook]
 # Stripe no manda un JWT: la autenticidad se comprueba con su firma.
 verify_jwt = false
+
+[functions.tropipay-webhook]
+# TropiPay tampoco manda un JWT. Aquí no hay firma que comprobar, así que el
+# aviso solo sirve de empujón: lo que vale es la relectura del cobro contra su
+# API con nuestras credenciales.
+verify_jwt = false

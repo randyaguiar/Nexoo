@@ -1,11 +1,17 @@
-// Abre la sesión de pago de Stripe para un pedido ya creado.
+// Abre la pasarela de pago de un pedido ya creado, con la que esté activa.
 //
 // El pedido se crea antes (create_order reserva el stock) y nace como
 // PendingPayment; esta función solo abre el cobro. El importe y las líneas se
 // leen de la base de datos, nunca del navegador: si vinieran del cliente se
 // podría pagar un pedido de 300 USD por 1.
 //
-// Secrets: STRIPE_SECRET_KEY, SITE_URL (y los SUPABASE_* que Supabase inyecta).
+// Cuál de las dos pasarelas se usa lo decide `payment_settings.provider`, que
+// se cambia desde el panel. El pedido siempre está en dólares; TropiPay cobra
+// en euros, así que se convierte aquí y se guarda con qué cambio.
+//
+// Secrets: SITE_URL; STRIPE_SECRET_KEY para Stripe; TROPIPAY_CLIENT_ID,
+// TROPIPAY_CLIENT_SECRET, TROPIPAY_API_URL y TROPIPAY_REASON_ID para TropiPay
+// (y los SUPABASE_* que Supabase inyecta).
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
@@ -33,8 +39,16 @@ interface OrderRow {
   status: string;
   total_usd: number;
   buyer_email: string;
-  stripe_session_id: string | null;
   order_items: OrderItemRow[];
+}
+
+/** Lo que las dos ramas tienen que devolver para poder guardar el cobro igual. */
+interface Opened {
+  url: string;
+  reference: string;
+  currency: string;
+  amount: number;
+  fxRate: number;
 }
 
 // Service role: la función lee el pedido de un comprador sin sesión.
@@ -43,24 +57,170 @@ const admin = createClient(
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
 );
 
+const shortRef = (id: string): string => id.replaceAll('-', '').slice(0, 8).toUpperCase();
+
+/** Stripe: una Checkout Session con una línea por producto, en dólares. */
+async function openStripe(order: OrderRow, siteUrl: string): Promise<Opened> {
+  const key = Deno.env.get('STRIPE_SECRET_KEY');
+  if (!key) throw new Error('Falta STRIPE_SECRET_KEY');
+
+  const params = new URLSearchParams({
+    mode: 'payment',
+    'payment_intent_data[metadata][order_id]': order.id,
+    'metadata[order_id]': order.id,
+    customer_email: order.buyer_email,
+    success_url: `${siteUrl}/pedido/${order.id}?pago=ok`,
+    cancel_url: `${siteUrl}/pedido/${order.id}?pago=cancelado`,
+  });
+
+  // Stripe trabaja en centavos: los decimales redondean hacia el céntimo exacto.
+  order.order_items.forEach((item, i) => {
+    params.set(`line_items[${i}][quantity]`, String(item.quantity));
+    params.set(`line_items[${i}][price_data][currency]`, 'usd');
+    params.set(`line_items[${i}][price_data][product_data][name]`, item.product_name);
+    params.set(
+      `line_items[${i}][price_data][unit_amount]`,
+      String(Math.round(Number(item.unit_price) * 100)),
+    );
+  });
+
+  const response = await fetch('https://api.stripe.com/v1/checkout/sessions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${key}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+      // Si el comprador pulsa dos veces, Stripe devuelve la misma sesión en
+      // lugar de abrir dos cobros para el mismo pedido.
+      'Idempotency-Key': `order-${order.id}`,
+    },
+    body: params,
+  });
+
+  if (!response.ok) {
+    console.error('Stripe falló:', response.status, await response.text());
+    throw new Error('No se pudo abrir la pasarela de pago.');
+  }
+
+  const session = (await response.json()) as { id: string; url: string };
+  return {
+    url: session.url,
+    reference: session.id,
+    currency: 'USD',
+    amount: Number(order.total_usd),
+    fxRate: 1,
+  };
+}
+
+/**
+ * TropiPay: un "paymentcard", que es su nombre para un enlace de cobro. Cobra
+ * en euros, así que el total del pedido se convierte con el cambio guardado en
+ * `payment_settings` y ese mismo cambio se anota en el pedido: lo que se le
+ * paga al negocio se sigue calculando en dólares.
+ */
+async function openTropipay(order: OrderRow, siteUrl: string, eurPerUsd: number): Promise<Opened> {
+  const base = (Deno.env.get('TROPIPAY_API_URL') ?? 'https://sandbox.tropipay.me').replace(/\/+$/, '');
+  const clientId = Deno.env.get('TROPIPAY_CLIENT_ID');
+  const clientSecret = Deno.env.get('TROPIPAY_CLIENT_SECRET');
+  if (!clientId || !clientSecret) throw new Error('Faltan las credenciales de TropiPay');
+
+  // A diferencia de Stripe, la clave no sirve como token: hay que canjearla.
+  const auth = await fetch(`${base}/api/v3/access/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({
+      client_id: clientId,
+      client_secret: clientSecret,
+      scopes: ['ALLOW_GET_PROFILE_DATA', 'ALLOW_PAYMENT_IN'],
+    }),
+  });
+
+  if (!auth.ok) {
+    console.error('TropiPay rechazó las credenciales:', auth.status, await auth.text());
+    throw new Error('No se pudo abrir la pasarela de pago.');
+  }
+
+  const { access_token: token } = (await auth.json()) as { access_token?: string };
+  if (!token) throw new Error('TropiPay no devolvió un token');
+
+  const eur = Number((Number(order.total_usd) * eurPerUsd).toFixed(2));
+  const reasonId = Number(Deno.env.get('TROPIPAY_REASON_ID') ?? '4');
+  const accountId = Deno.env.get('TROPIPAY_ACCOUNT_ID');
+
+  const body: Record<string, unknown> = {
+    // La referencia es el id del pedido: es con lo que el webhook sabe a qué
+    // pedido corresponde el cobro.
+    reference: order.id,
+    concept: `Nexoo ${shortRef(order.id)}`,
+    description: `Pedido ${shortRef(order.id)} en Nexoo`,
+    // TropiPay trabaja en céntimos, igual que Stripe.
+    amount: Math.round(eur * 100),
+    currency: 'EUR',
+    // Un enlace, un cobro: evita que el mismo pedido se pague dos veces.
+    singleUse: true,
+    reasonId,
+    lang: 'es',
+    urlSuccess: `${siteUrl}/pedido/${order.id}?pago=ok`,
+    urlFailed: `${siteUrl}/pedido/${order.id}?pago=cancelado`,
+    urlNotification: `${Deno.env.get('SUPABASE_URL')}/functions/v1/tropipay-webhook`,
+    // No se manda `client`: TropiPay exige el objeto entero si se manda —con
+    // fecha de nacimiento incluida— y esos datos no se piden en el checkout.
+    // Los recoge su propia página.
+    paymentMethods: ['EXT'],
+  };
+
+  if (accountId) body.accountId = Number(accountId);
+
+  const response = await fetch(`${base}/api/v3/paymentcards`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    console.error('TropiPay falló:', response.status, await response.text());
+    throw new Error('No se pudo abrir la pasarela de pago.');
+  }
+
+  const card = (await response.json()) as {
+    id?: string;
+    shortUrl?: string;
+    paymentUrl?: string;
+    rawUrlPayment?: string;
+  };
+
+  const url = card.shortUrl ?? card.paymentUrl ?? card.rawUrlPayment;
+  if (!url || !card.id) {
+    console.error('TropiPay no devolvió enlace de pago:', JSON.stringify(card));
+    throw new Error('No se pudo abrir la pasarela de pago.');
+  }
+
+  return { url, reference: card.id, currency: 'EUR', amount: eur, fxRate: eurPerUsd };
+}
+
 Deno.serve(async (request: Request): Promise<Response> => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: CORS });
 
-  const stripeKey = Deno.env.get('STRIPE_SECRET_KEY');
   const siteUrl = Deno.env.get('SITE_URL');
-  if (!stripeKey || !siteUrl) {
-    console.error('Faltan STRIPE_SECRET_KEY o SITE_URL');
+  if (!siteUrl) {
+    console.error('Falta SITE_URL');
     return json({ error: 'El cobro no está configurado.' }, 500);
   }
 
   const { orderId } = (await request.json().catch(() => ({}))) as { orderId?: string };
   if (!orderId) return json({ error: 'Falta el pedido.' }, 400);
 
-  const { data, error } = await admin
-    .from('orders')
-    .select('id, status, total_usd, buyer_email, stripe_session_id, order_items(product_name, quantity, unit_price)')
-    .eq('id', orderId)
-    .maybeSingle();
+  const [{ data, error }, { data: settings }] = await Promise.all([
+    admin
+      .from('orders')
+      .select('id, status, total_usd, buyer_email, order_items(product_name, quantity, unit_price)')
+      .eq('id', orderId)
+      .maybeSingle(),
+    admin.from('payment_settings').select('provider, eur_per_usd').eq('id', true).maybeSingle(),
+  ]);
 
   if (error) {
     console.error('No se pudo leer el pedido:', error.message);
@@ -75,53 +235,36 @@ Deno.serve(async (request: Request): Promise<Response> => {
     return json({ error: 'Ese pedido ya no está pendiente de pago.' }, 409);
   }
 
-  // Stripe trabaja en centavos: los decimales redondean hacia el céntimo exacto.
-  const params = new URLSearchParams({
-    mode: 'payment',
-    'payment_intent_data[metadata][order_id]': order.id,
-    'metadata[order_id]': order.id,
-    customer_email: order.buyer_email,
-    success_url: `${siteUrl}/pedido/${order.id}?pago=ok`,
-    cancel_url: `${siteUrl}/pedido/${order.id}?pago=cancelado`,
-  });
+  // Sin fila de ajustes se cobra con Stripe, que es como estaba antes.
+  const provider = settings?.provider === 'tropipay' ? 'tropipay' : 'stripe';
+  const eurPerUsd = Number(settings?.eur_per_usd ?? 0.92);
 
-  order.order_items.forEach((item, i) => {
-    params.set(`line_items[${i}][quantity]`, String(item.quantity));
-    params.set(`line_items[${i}][price_data][currency]`, 'usd');
-    params.set(`line_items[${i}][price_data][product_data][name]`, item.product_name);
-    params.set(
-      `line_items[${i}][price_data][unit_amount]`,
-      String(Math.round(Number(item.unit_price) * 100)),
-    );
-  });
-
-  const response = await fetch('https://api.stripe.com/v1/checkout/sessions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${stripeKey}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-      // Si el comprador pulsa dos veces, Stripe devuelve la misma sesión en
-      // lugar de abrir dos cobros para el mismo pedido.
-      'Idempotency-Key': `order-${order.id}`,
-    },
-    body: params,
-  });
-
-  if (!response.ok) {
-    console.error('Stripe falló:', response.status, await response.text());
+  let opened: Opened;
+  try {
+    opened =
+      provider === 'tropipay'
+        ? await openTropipay(order, siteUrl, eurPerUsd)
+        : await openStripe(order, siteUrl);
+  } catch (e) {
+    console.error('No se pudo abrir el cobro con', provider, (e as Error).message);
     return json({ error: 'No se pudo abrir la pasarela de pago.' }, 502);
   }
 
-  const session = (await response.json()) as { id: string; url: string };
-
   const { error: saveError } = await admin
     .from('orders')
-    .update({ stripe_session_id: session.id })
+    .update({
+      payment_provider: provider,
+      payment_reference: opened.reference,
+      charged_currency: opened.currency,
+      charged_amount: opened.amount,
+      fx_rate: opened.fxRate,
+    })
     .eq('id', order.id);
 
-  // Guardar la sesión es para poder reanudar el pago; si falla, el cobro puede
-  // seguir su curso igual, así que solo se registra.
-  if (saveError) console.error('No se pudo guardar la sesión:', saveError.message);
+  // Guardar el cobro abierto es para poder reanudarlo y para que el webhook
+  // sepa con qué pasarela se abrió; si falla, el cobro puede seguir su curso
+  // igual, así que solo se registra.
+  if (saveError) console.error('No se pudo guardar el cobro abierto:', saveError.message);
 
-  return json({ url: session.url });
+  return json({ url: opened.url });
 });

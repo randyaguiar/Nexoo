@@ -111,7 +111,11 @@ Deno.serve(async (request: Request): Promise<Response> => {
   // de Stripe sobre un evento ya procesado no vuelve a cambiar nada.
   const { data, error } = await admin.rpc('mark_order_paid', {
     p_order_id: orderId,
-    p_payment_intent: session.payment_intent ?? null,
+    p_provider: 'stripe',
+    p_charge_id: session.payment_intent ?? null,
+    p_currency: 'USD',
+    p_amount: null,
+    p_fx_rate: 1,
   });
 
   if (error) {

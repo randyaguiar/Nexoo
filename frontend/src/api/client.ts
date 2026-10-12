@@ -16,6 +16,8 @@ import type {
   MunicipalityInput,
   Order,
   OrderStatus,
+  PaymentProvider,
+  PaymentSettings,
   Product,
   ProductDetail,
   ProductInput,
@@ -554,6 +556,38 @@ export const api = {
       product,
       business: toBusiness(businessRow as unknown as BusinessRow, Number(businessRow.product_count)),
     };
+  },
+
+  /**
+   * La pasarela activa. Una sola fila, que solo el owner puede leer y cambiar;
+   * el checkout no la consulta, la decide la Edge Function al abrir el cobro.
+   */
+  payments: {
+    async get(): Promise<PaymentSettings> {
+      const { data, error } = await supabase
+        .from('payment_settings')
+        .select('provider, eur_per_usd, updated_at')
+        .eq('id', true)
+        .maybeSingle();
+
+      if (error) fail(error);
+      if (!data) throw new Error('No se pudo leer la configuración de cobro.');
+
+      return {
+        provider: data.provider as PaymentProvider,
+        eurPerUsd: Number(data.eur_per_usd),
+        updatedAt: data.updated_at as string,
+      };
+    },
+
+    async save(provider: PaymentProvider, eurPerUsd: number): Promise<void> {
+      const { error } = await supabase
+        .from('payment_settings')
+        .update({ provider, eur_per_usd: eurPerUsd })
+        .eq('id', true);
+
+      if (error) fail(error);
+    },
   },
 
   /**

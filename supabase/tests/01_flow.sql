@@ -265,3 +265,55 @@ do $$ begin
   end;
 end $$;
 \echo 'G OK: no se aprueba una cuenta con pedidos'
+
+-- Pasarela de cobro ------------------------------------------------------------
+
+-- H) Solo el owner cambia la pasarela.
+set role authenticated;
+set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
+do $$ begin
+  update public.payment_settings set provider='tropipay' where id;
+  if found then
+    raise exception 'FALLO H: un negocio cambió la pasarela de cobro';
+  end if;
+end $$;
+\echo 'H OK: solo el owner cambia la pasarela'
+
+set request.jwt.claim.sub = '11111111-1111-1111-1111-111111111111';
+update public.payment_settings set provider='tropipay', eur_per_usd=0.9 where id;
+select 'I OK: el owner la cambió a '||provider||' a '||eur_per_usd||' €/$'
+from public.payment_settings;
+
+-- J) mark_order_paid deja constancia de con qué se cobró, y es idempotente.
+reset role;
+insert into auth.users (id, email) values
+  ('88888888-8888-8888-8888-888888888888','pagador@x.com') on conflict do nothing;
+
+set role anon;
+select public.create_order(jsonb_build_object(
+  'buyerName','Ana','buyerEmail','ana@x.com','buyerPhone','+1305',
+  'recipientName','Luis','recipientPhone','+5352','recipientProvince','LaHabana',
+  'recipientMunicipality','Playa','recipientAddress','Calle 1',
+  'items', jsonb_build_array(jsonb_build_object(
+    'productId', (select id from public.products where name='Pastel'), 'quantity', 1))
+)) as poid \gset
+
+reset role;
+select case when public.mark_order_paid(:'poid','tropipay','BOC-1','EUR',4.68,0.9)
+  then 'J OK: marcado pagado con TropiPay' else 'J FALLO' end;
+
+select case when public.mark_order_paid(:'poid','tropipay','BOC-1','EUR',4.68,0.9) = false
+  then 'K OK: el reintento no vuelve a marcarlo' else 'K FALLO' end;
+
+select 'L OK: cobrado '||charged_amount||' '||charged_currency||' al cambio '||fx_rate
+from public.orders where id=:'poid';
+
+-- M) Una pasarela inventada no entra.
+do $$ begin
+  begin
+    perform public.mark_order_paid(gen_random_uuid(),'paypal','x','USD',1,1);
+    raise exception 'FALLO M: aceptó una pasarela desconocida';
+  exception when sqlstate '22023' then null;
+  end;
+end $$;
+\echo 'M OK: rechaza una pasarela desconocida'
