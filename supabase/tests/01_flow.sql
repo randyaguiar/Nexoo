@@ -365,3 +365,31 @@ do $$ begin
   end;
 end $$;
 \echo 'S OK: los métodos de pago son genéricos'
+
+-- T) Un negocio sin pedidos se puede borrar: el trigger del historial se
+-- disparaba después del borrado y escribía un id que ya no existía, así que la
+-- clave foránea tumbaba el delete entero.
+reset role;
+insert into public.businesses (name, municipality_id, contact_phone, active)
+values ('Negocio Desechable', '44444444-4444-4444-4444-444444444444', '+53', true);
+
+delete from public.businesses where name = 'Negocio Desechable';
+select case when (select count(*) from public.businesses where name='Negocio Desechable') = 0
+  then 'T OK: un negocio sin pedidos se borra' else 'T FALLO' end;
+
+select case when exists (
+         select 1 from public.activity_log
+          where entity = 'businesses' and action = 'delete' and business_id is null)
+  then 'U OK: y el borrado queda en el historial, sin referencia rota'
+  else 'U FALLO' end;
+
+-- V) Uno con pedidos no: los pedidos son el registro de un dinero que se movió.
+do $$ begin
+  begin
+    delete from public.businesses
+     where id = (select business_id from public.orders limit 1);
+    raise exception 'FALLO V: borró un negocio con pedidos';
+  exception when foreign_key_violation then null;
+  end;
+end $$;
+\echo 'V OK: no se borra un negocio con pedidos'

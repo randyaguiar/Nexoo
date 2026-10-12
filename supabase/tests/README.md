@@ -34,6 +34,14 @@ ejercitar cambiando de rol con `set role` y `set request.jwt.claim.sub`.
 o no. Sirve para saber en qué punto se quedó una base de datos sin ir probando
 migraciones a ciegas; se pega tal cual en el SQL editor de Supabase.
 
+## Operaciones puntuales
+
+`inventario_cuba.sql` enseña, sin tocar nada, qué cuelga de cada negocio de Cuba
+y qué le pasaría al borrarlo. `borrar_negocios_cuba.sql` lo hace: borra los que
+no tienen historial de dinero y desactiva los que sí, porque `orders` y
+`settlements` son `on delete restrict` a propósito. Los dos se pegan en el SQL
+editor de Supabase; el segundo no se deshace.
+
 ## Ponerse al día
 
 `aplicar_pendientes.sql` es la concatenación de las migraciones de precios,
