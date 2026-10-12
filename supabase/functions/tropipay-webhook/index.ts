@@ -30,10 +30,18 @@ interface Paymentcard {
   bankOrderCode: string | null;
 }
 
+/**
+ * El bearer con el que se llama a TropiPay. Su documentación pública no explica
+ * la autenticación: en un ejemplo usa una clave fija al estilo Stripe
+ * (`Bearer sk_test_…`) y en otros habla de un token que caduca. Se admiten las
+ * dos: si el secret ya parece una clave de API, se manda tal cual.
+ */
 async function token(): Promise<string | null> {
   const clientId = Deno.env.get('TROPIPAY_CLIENT_ID');
   const clientSecret = Deno.env.get('TROPIPAY_CLIENT_SECRET');
   if (!clientId || !clientSecret) return null;
+
+  if (clientSecret.startsWith('sk_') || clientSecret.startsWith('pk_')) return clientSecret;
 
   const response = await fetch(`${base}/api/v3/access/login`, {
     method: 'POST',
@@ -50,8 +58,8 @@ async function token(): Promise<string | null> {
     return null;
   }
 
-  const { access_token } = (await response.json()) as { access_token?: string };
-  return access_token ?? null;
+  const body = (await response.json()) as { access_token?: string; token?: string };
+  return body.access_token ?? body.token ?? null;
 }
 
 Deno.serve(async (request: Request): Promise<Response> => {

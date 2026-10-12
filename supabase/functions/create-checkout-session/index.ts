@@ -112,18 +112,21 @@ async function openStripe(order: OrderRow, siteUrl: string): Promise<Opened> {
 }
 
 /**
- * TropiPay: un "paymentcard", que es su nombre para un enlace de cobro. Cobra
- * en euros, así que el total del pedido se convierte con el cambio guardado en
- * `payment_settings` y ese mismo cambio se anota en el pedido: lo que se le
- * paga al negocio se sigue calculando en dólares.
+ * El bearer con el que se llama a TropiPay.
+ *
+ * Su documentación pública no explica la autenticación: en un ejemplo usa una
+ * clave fija al estilo Stripe (`Bearer sk_test_…`) y en otros sitios habla de un
+ * token que caduca. Se admiten las dos formas, así que basta con guardar en
+ * TROPIPAY_CLIENT_SECRET lo que den: si ya es una clave de API se manda tal
+ * cual, y si no se canjea por un token.
  */
-async function openTropipay(order: OrderRow, siteUrl: string, eurPerUsd: number): Promise<Opened> {
-  const base = (Deno.env.get('TROPIPAY_API_URL') ?? 'https://sandbox.tropipay.me').replace(/\/+$/, '');
-  const clientId = Deno.env.get('TROPIPAY_CLIENT_ID');
-  const clientSecret = Deno.env.get('TROPIPAY_CLIENT_SECRET');
-  if (!clientId || !clientSecret) throw new Error('Faltan las credenciales de TropiPay');
+async function tropipayToken(
+  base: string,
+  clientId: string,
+  clientSecret: string,
+): Promise<string | null> {
+  if (clientSecret.startsWith('sk_') || clientSecret.startsWith('pk_')) return clientSecret;
 
-  // A diferencia de Stripe, la clave no sirve como token: hay que canjearla.
   const auth = await fetch(`${base}/api/v3/access/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
@@ -136,11 +139,27 @@ async function openTropipay(order: OrderRow, siteUrl: string, eurPerUsd: number)
 
   if (!auth.ok) {
     console.error('TropiPay rechazó las credenciales:', auth.status, await auth.text());
-    throw new Error('No se pudo abrir la pasarela de pago.');
+    return null;
   }
 
-  const { access_token: token } = (await auth.json()) as { access_token?: string };
-  if (!token) throw new Error('TropiPay no devolvió un token');
+  const body = (await auth.json()) as { access_token?: string; token?: string };
+  return body.access_token ?? body.token ?? null;
+}
+
+/**
+ * TropiPay: un "paymentcard", que es su nombre para un enlace de cobro. Cobra
+ * en euros, así que el total del pedido se convierte con el cambio guardado en
+ * `payment_settings` y ese mismo cambio se anota en el pedido: lo que se le
+ * paga al negocio se sigue calculando en dólares.
+ */
+async function openTropipay(order: OrderRow, siteUrl: string, eurPerUsd: number): Promise<Opened> {
+  const base = (Deno.env.get('TROPIPAY_API_URL') ?? 'https://sandbox.tropipay.me').replace(/\/+$/, '');
+  const clientId = Deno.env.get('TROPIPAY_CLIENT_ID');
+  const clientSecret = Deno.env.get('TROPIPAY_CLIENT_SECRET');
+  if (!clientId || !clientSecret) throw new Error('Faltan las credenciales de TropiPay');
+
+  const token = await tropipayToken(base, clientId, clientSecret);
+  if (!token) throw new Error('No se pudo autenticar contra TropiPay');
 
   const eur = Number((Number(order.total_usd) * eurPerUsd).toFixed(2));
   const reasonId = Number(Deno.env.get('TROPIPAY_REASON_ID') ?? '4');

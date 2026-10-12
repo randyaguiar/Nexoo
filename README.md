@@ -260,6 +260,11 @@ supabase functions deploy tropipay-webhook
 1. Secrets: `TROPIPAY_CLIENT_ID`, `TROPIPAY_CLIENT_SECRET` y `TROPIPAY_API_URL`
    (`https://sandbox.tropipay.me` para probar). Opcionales: `TROPIPAY_ACCOUNT_ID` si tienes más de
    una cuenta y `TROPIPAY_REASON_ID` si el motivo por defecto no te sirve.
+
+   En `TROPIPAY_CLIENT_SECRET` va lo que te den: su documentación pública no explica la
+   autenticación —en un ejemplo usa una clave fija al estilo Stripe (`sk_test_…`) y en otros habla
+   de un token que caduca—, así que el código admite las dos. Si el secret empieza por `sk_` o
+   `pk_` se manda tal cual como bearer; si no, se canjea por un token en `/api/v3/access/login`.
 2. El aviso de pago no se configura en su panel: la URL se manda en cada cobro
    (`urlNotification`), apuntando a `tropipay-webhook`.
 3. **Calibración, una sola vez.** Qué valor del campo `state` significa "pagado" no está
