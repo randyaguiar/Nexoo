@@ -76,6 +76,7 @@ export function BusinessPage() {
         <div>
           <h1 className="page-title">{business.name}</h1>
           <p className="page-subtitle">
+            <span className="tag">{business.countryName}</span>
             <span className="tag">{business.provinceName}</span>
             {business.categories.map((c) => (
               <span key={c.id} className="tag">

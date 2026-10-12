@@ -2,13 +2,15 @@ import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
 import { SkeletonGrid } from '../components/Skeleton';
-import type { Business, Category, ProvinceRef } from '../api/types';
+import type { Business, Category, CountryRef, ProvinceRef } from '../api/types';
 
 export function CatalogPage() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const country = searchParams.get('pais');
   const province = searchParams.get('provincia');
   const categoryId = searchParams.get('categoria');
 
+  const [countries, setCountries] = useState<CountryRef[]>([]);
   const [provinces, setProvinces] = useState<ProvinceRef[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [businesses, setBusinesses] = useState<Business[]>([]);
@@ -16,8 +18,9 @@ export function CatalogPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([api.listProvinces(), api.listCategories()])
-      .then(([provinceList, categoryList]) => {
+    Promise.all([api.listCountries(), api.listProvinces(), api.listCategories()])
+      .then(([countryList, provinceList, categoryList]) => {
+        setCountries(countryList);
         setProvinces(provinceList);
         setCategories(categoryList);
       })
@@ -30,7 +33,7 @@ export function CatalogPage() {
     setError(null);
 
     api
-      .listBusinesses(province, categoryId)
+      .listBusinesses(province, categoryId, country)
       .then((data) => {
         if (!cancelled) setBusinesses(data);
       })
@@ -44,14 +47,19 @@ export function CatalogPage() {
     return () => {
       cancelled = true;
     };
-  }, [province, categoryId]);
+  }, [province, categoryId, country]);
 
-  const setFilter = (key: 'provincia' | 'categoria', value: string | null) => {
+  const setFilter = (key: 'pais' | 'provincia' | 'categoria', value: string | null) => {
     const next = new URLSearchParams(searchParams);
     if (value) {
       next.set(key, value);
     } else {
       next.delete(key);
+    }
+
+    // Una provincia de Cuba no significa nada con Jamaica elegida.
+    if (key === 'pais') {
+      next.delete('provincia');
     }
     setSearchParams(next);
   };
@@ -61,7 +69,7 @@ export function CatalogPage() {
       <section className="hero">
         <h1>Cerca de los tuyos, aunque estés lejos.</h1>
         <p>
-          Elige un negocio local, arma el pedido y lo entregamos a tu familia en Cuba. Sin envíos ni
+          Elige un negocio local, arma el pedido y lo entregamos a tu familia. Sin envíos ni
           esperas: el negocio prepara todo allá mismo.
         </p>
         <ol className="hero-steps">
@@ -75,13 +83,37 @@ export function CatalogPage() {
             <span>3</span> Paga con tarjeta
           </li>
           <li>
-            <span>4</span> Entregamos en Cuba
+            <span>4</span> Entregamos allá
           </li>
         </ol>
       </section>
 
       <h2 className="page-title">Negocios disponibles</h2>
-      <p className="page-subtitle">Filtra por provincia para ver quién entrega cerca de tu familia.</p>
+      <p className="page-subtitle">
+        Elige el país y la provincia para ver quién entrega cerca de tu familia.
+      </p>
+
+      {countries.length > 1 && (
+        <div className="filters" role="group" aria-label="Filtrar por país">
+          <button
+            type="button"
+            className={`chip ${country === null ? 'active' : ''}`}
+            onClick={() => setFilter('pais', null)}
+          >
+            Todo el Caribe
+          </button>
+          {countries.map((c) => (
+            <button
+              key={c.code}
+              type="button"
+              className={`chip ${country === c.code ? 'active' : ''}`}
+              onClick={() => setFilter('pais', c.code)}
+            >
+              {c.name}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="filters" role="group" aria-label="Filtrar por provincia">
         <button
@@ -91,16 +123,18 @@ export function CatalogPage() {
         >
           Todas las provincias
         </button>
-        {provinces.map((p) => (
-          <button
-            key={p.code}
-            type="button"
-            className={`chip ${province === p.code ? 'active' : ''}`}
-            onClick={() => setFilter('provincia', p.code)}
-          >
-            {p.name}
-          </button>
-        ))}
+        {provinces
+          .filter((p) => !country || p.countryCode === country)
+          .map((p) => (
+            <button
+              key={p.code}
+              type="button"
+              className={`chip ${province === p.code ? 'active' : ''}`}
+              onClick={() => setFilter('provincia', p.code)}
+            >
+              {p.name}
+            </button>
+          ))}
       </div>
 
       {categories.length > 0 && (
@@ -161,6 +195,7 @@ export function CatalogPage() {
                     />
                   )}
                   <div>
+                    <span className="tag">{business.countryName}</span>
                     <span className="tag">{business.provinceName}</span>
                     {business.categories.map((c) => (
                       <span key={c.id} className="tag">

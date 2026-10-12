@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../api/client';
-import type { Business, Municipality, ProvinceRef } from '../../api/types';
+import type { Business, CountryRef, Municipality, ProvinceRef } from '../../api/types';
 import {
   CheckIcon,
   CloseIcon,
+  GridIcon,
   MapIcon,
   MapPinIcon,
   PencilIcon,
@@ -12,9 +13,11 @@ import {
 } from '../../components/Icon';
 import { Modal } from '../../components/Modal';
 
-const emptyProvince = { code: '', name: '', active: true };
+const emptyCountry = { code: '', name: '', phonePrefix: '', active: true };
+const emptyProvince = { code: '', countryCode: '', name: '', active: true };
 
 export function AdminPlacesPage() {
+  const [countries, setCountries] = useState<CountryRef[]>([]);
   const [provinces, setProvinces] = useState<ProvinceRef[]>([]);
   const [municipalities, setMunicipalities] = useState<Municipality[]>([]);
   const [businesses, setBusinesses] = useState<Business[]>([]);
@@ -22,6 +25,12 @@ export function AdminPlacesPage() {
   const [error, setError] = useState<string | null>(null);
   // El aviso del municipio se muestra junto a su tabla, no al principio de la página.
   const [municipalityError, setMunicipalityError] = useState<string | null>(null);
+
+  const [countryForm, setCountryForm] = useState(emptyCountry);
+  const [editingCountry, setEditingCountry] = useState<string | null>(null);
+  const [countryFormOpen, setCountryFormOpen] = useState(false);
+  /** El país que se está mirando: filtra las provincias de abajo. */
+  const [selectedCountry, setSelectedCountry] = useState('');
 
   const [provinceForm, setProvinceForm] = useState(emptyProvince);
   const [editingProvince, setEditingProvince] = useState<string | null>(null);
@@ -36,14 +45,17 @@ export function AdminPlacesPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [provinceList, municipalityList, businessList] = await Promise.all([
+      const [countryList, provinceList, municipalityList, businessList] = await Promise.all([
+        api.admin.listCountries(),
         api.listProvinces(),
         api.listMunicipalities(),
         api.admin.listBusinesses(),
       ]);
+      setCountries(countryList);
       setProvinces(provinceList);
       setMunicipalities(municipalityList);
       setBusinesses(businessList);
+      setSelectedCountry((current) => current || countryList[0]?.code || '');
       setSelectedProvince((current) => current || provinceList[0]?.code || '');
       setError(null);
     } catch (e) {
@@ -57,6 +69,56 @@ export function AdminPlacesPage() {
     void load();
   }, [load]);
 
+  const closeCountryForm = () => {
+    setCountryForm(emptyCountry);
+    setEditingCountry(null);
+    setCountryFormOpen(false);
+  };
+
+  const openCreateCountry = () => {
+    setCountryForm(emptyCountry);
+    setEditingCountry(null);
+    setCountryFormOpen(true);
+  };
+
+  const editCountry = (country: CountryRef) => {
+    setEditingCountry(country.code);
+    setCountryForm({
+      code: country.code,
+      name: country.name,
+      phonePrefix: country.phonePrefix ?? '',
+      active: country.active,
+    });
+    setCountryFormOpen(true);
+  };
+
+  const submitCountry = async (event: React.FormEvent) => {
+    event.preventDefault();
+    try {
+      if (editingCountry) {
+        await api.admin.updateCountry(editingCountry, countryForm);
+      } else {
+        await api.admin.createCountry(countryForm);
+      }
+      setError(null);
+      closeCountryForm();
+      await load();
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
+
+  const removeCountry = async (country: CountryRef) => {
+    if (!confirm(`¿Eliminar "${country.name}"? Solo se puede si no tiene provincias.`)) return;
+    try {
+      await api.admin.deleteCountry(country.code);
+      if (editingCountry === country.code) closeCountryForm();
+      await load();
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
+
   const closeProvinceForm = () => {
     setProvinceForm(emptyProvince);
     setEditingProvince(null);
@@ -64,7 +126,7 @@ export function AdminPlacesPage() {
   };
 
   const openCreateProvince = () => {
-    setProvinceForm(emptyProvince);
+    setProvinceForm({ ...emptyProvince, countryCode: selectedCountry });
     setEditingProvince(null);
     setProvinceFormOpen(true);
   };
@@ -73,6 +135,7 @@ export function AdminPlacesPage() {
     setEditingProvince(province.code);
     setProvinceForm({
       code: province.code,
+      countryCode: province.countryCode,
       name: province.name,
       active: province.active,
     });
@@ -84,6 +147,7 @@ export function AdminPlacesPage() {
     // El código identifica la provincia en negocios y pedidos: sin espacios ni acentos.
     const input = {
       code: provinceForm.code.trim(),
+      countryCode: provinceForm.countryCode,
       name: provinceForm.name.trim(),
       active: provinceForm.active,
     };
@@ -170,6 +234,7 @@ export function AdminPlacesPage() {
     businesses.filter((b) => b.municipalityId === municipalityId).length;
 
   const visibleMunicipalities = municipalities.filter((m) => m.provinceCode === selectedProvince);
+  const visibleProvinces = provinces.filter((p) => p.countryCode === selectedCountry);
 
   return (
     <>
@@ -177,16 +242,108 @@ export function AdminPlacesPage() {
 
       <div className="page-toolbar">
         <h3 className="form-title">
+          <GridIcon size={18} /> Países
+        </h3>
+        <button type="button" onClick={openCreateCountry}>
+          <PlusIcon /> Nuevo país
+        </button>
+      </div>
+
+      <p className="field-hint" style={{ marginBottom: 'var(--space-3)' }}>
+        Un país apagado no sale en el catálogo, y con él se esconden sus provincias y sus negocios.
+      </p>
+
+      {loading && <p className="empty">Cargando…</p>}
+
+      {countries.length > 0 && (
+        <div className="table-wrap" style={{ marginBottom: 32 }}>
+          <table>
+            <thead>
+              <tr>
+                <th>País</th>
+                <th>Código</th>
+                <th>Teléfono</th>
+                <th>Provincias</th>
+                <th>Visible</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {countries.map((country) => {
+                const provinceCount = provinces.filter(
+                  (p) => p.countryCode === country.code,
+                ).length;
+                return (
+                  <tr key={country.code}>
+                    <td>{country.name}</td>
+                    <td>{country.code}</td>
+                    <td>{country.phonePrefix ?? '—'}</td>
+                    <td>{provinceCount}</td>
+                    <td>{country.active ? 'Sí' : 'No'}</td>
+                    <td>
+                      <span className="row-actions">
+                        <button
+                          type="button"
+                          className="icon-button"
+                          title="Editar país"
+                          aria-label={`Editar ${country.name}`}
+                          onClick={() => editCountry(country)}
+                        >
+                          <PencilIcon size={15} />
+                        </button>
+                        <button
+                          type="button"
+                          className="icon-button danger"
+                          disabled={provinceCount > 0}
+                          title={
+                            provinceCount > 0
+                              ? 'Tiene provincias: desmarca "Visible" en lugar de borrarlo.'
+                              : 'Eliminar país'
+                          }
+                          aria-label={`Eliminar ${country.name}`}
+                          onClick={() => void removeCountry(country)}
+                        >
+                          <TrashIcon size={15} />
+                        </button>
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <div className="page-toolbar">
+        <h3 className="form-title">
           <MapIcon size={18} /> Provincias
         </h3>
-        <button type="button" onClick={openCreateProvince}>
+        <button type="button" onClick={openCreateProvince} disabled={!selectedCountry}>
           <PlusIcon /> Nueva provincia
         </button>
       </div>
 
-      {loading && <p className="empty">Cargando provincias…</p>}
+      <div className="field" style={{ maxWidth: 360 }}>
+        <label htmlFor="provinceCountry">País</label>
+        <select
+          id="provinceCountry"
+          value={selectedCountry}
+          onChange={(e) => setSelectedCountry(e.target.value)}
+        >
+          {countries.map((c) => (
+            <option key={c.code} value={c.code}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+      </div>
 
-      {provinces.length > 0 && (
+      {!loading && visibleProvinces.length === 0 && (
+        <p className="empty">Este país todavía no tiene provincias.</p>
+      )}
+
+      {visibleProvinces.length > 0 && (
         <div className="table-wrap" style={{ marginBottom: 32 }}>
           <table>
             <thead>
@@ -199,7 +356,7 @@ export function AdminPlacesPage() {
               </tr>
             </thead>
             <tbody>
-              {provinces.map((province) => {
+              {visibleProvinces.map((province) => {
                 const hasBusinesses = businesses.some((b) => b.province === province.code);
                 return (
                   <tr key={province.code}>
@@ -261,7 +418,7 @@ export function AdminPlacesPage() {
             closeMunicipalityForm();
           }}
         >
-          {provinces.map((p) => (
+          {visibleProvinces.map((p) => (
             <option key={p.code} value={p.code}>
               {p.name}
             </option>
@@ -337,6 +494,24 @@ export function AdminPlacesPage() {
           onClose={closeProvinceForm}
         >
           <form onSubmit={submitProvince}>
+            <div className="field">
+              <label htmlFor="provinceFormCountry">País</label>
+              <select
+                id="provinceFormCountry"
+                required
+                value={provinceForm.countryCode}
+                onChange={(e) =>
+                  setProvinceForm((f) => ({ ...f, countryCode: e.target.value }))
+                }
+              >
+                <option value="">Elige un país…</option>
+                {countries.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div className="field-row">
               <div className="field">
                 <label htmlFor="provinceCode">Código</label>
@@ -349,7 +524,12 @@ export function AdminPlacesPage() {
                   value={provinceForm.code}
                   onChange={(e) => setProvinceForm((f) => ({ ...f, code: e.target.value }))}
                 />
-                <p className="field-hint">Identificador interno, sin espacios ni acentos.</p>
+                <p className="field-hint">
+                  Identificador interno, sin espacios ni acentos. Es único en todo el marketplace,
+                  no dentro del país: usa prefijo (
+                  {provinceForm.countryCode ? `${provinceForm.countryCode}Santiago` : 'CUSantiago'})
+                  para que no choque con una provincia del mismo nombre en otra isla.
+                </p>
               </div>
               <div className="field">
                 <label htmlFor="provinceName">Nombre</label>
@@ -377,7 +557,7 @@ export function AdminPlacesPage() {
               <button type="button" className="secondary" onClick={closeProvinceForm}>
                 <CloseIcon /> Cancelar
               </button>
-              <button type="submit">
+              <button type="submit" disabled={!provinceForm.countryCode}>
                 {editingProvince ? <CheckIcon /> : <PlusIcon />}
                 {editingProvince ? 'Guardar cambios' : 'Crear provincia'}
               </button>
@@ -405,7 +585,7 @@ export function AdminPlacesPage() {
                   value={selectedProvince}
                   onChange={(e) => setSelectedProvince(e.target.value)}
                 >
-                  {provinces.map((p) => (
+                  {visibleProvinces.map((p) => (
                     <option key={p.code} value={p.code}>
                       {p.name}
                     </option>
@@ -441,6 +621,77 @@ export function AdminPlacesPage() {
               <button type="submit" disabled={!selectedProvince}>
                 {editingMunicipality ? <CheckIcon /> : <PlusIcon />}
                 {editingMunicipality ? 'Guardar cambios' : 'Añadir municipio'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {countryFormOpen && (
+        <Modal
+          title={
+            <>
+              {editingCountry ? <PencilIcon size={18} /> : <PlusIcon size={18} />}
+              {editingCountry ? 'Editar país' : 'Nuevo país'}
+            </>
+          }
+          onClose={closeCountryForm}
+        >
+          <form onSubmit={submitCountry}>
+            <div className="field-row">
+              <div className="field">
+                <label htmlFor="countryCode">Código</label>
+                <input
+                  id="countryCode"
+                  required
+                  maxLength={2}
+                  pattern="[A-Za-z]{2}"
+                  title="Dos letras, como en el estándar ISO (CU, DO, JM)"
+                  value={countryForm.code}
+                  onChange={(e) => setCountryForm((f) => ({ ...f, code: e.target.value }))}
+                />
+                <p className="field-hint">Dos letras, ISO 3166 (CU, DO, JM…).</p>
+              </div>
+              <div className="field">
+                <label htmlFor="countryName">Nombre</label>
+                <input
+                  id="countryName"
+                  required
+                  maxLength={120}
+                  value={countryForm.name}
+                  onChange={(e) => setCountryForm((f) => ({ ...f, name: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="field">
+              <label htmlFor="countryPhone">Prefijo telefónico</label>
+              <input
+                id="countryPhone"
+                maxLength={10}
+                placeholder="+53"
+                value={countryForm.phonePrefix}
+                onChange={(e) => setCountryForm((f) => ({ ...f, phonePrefix: e.target.value }))}
+              />
+              <p className="field-hint">Solo se usa como ejemplo en los formularios.</p>
+            </div>
+            <div className="field">
+              <label htmlFor="countryActive" className="checkbox">
+                <input
+                  id="countryActive"
+                  type="checkbox"
+                  checked={countryForm.active}
+                  onChange={(e) => setCountryForm((f) => ({ ...f, active: e.target.checked }))}
+                />
+                Visible en el catálogo
+              </label>
+            </div>
+            <div className="modal-footer">
+              <button type="button" className="secondary" onClick={closeCountryForm}>
+                <CloseIcon /> Cancelar
+              </button>
+              <button type="submit">
+                {editingCountry ? <CheckIcon /> : <PlusIcon />}
+                {editingCountry ? 'Guardar cambios' : 'Crear país'}
               </button>
             </div>
           </form>

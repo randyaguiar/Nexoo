@@ -44,18 +44,43 @@ export function CheckoutPage() {
   const [error, setError] = useState<string | null>(null);
   const [provinces, setProvinces] = useState<ProvinceRef[]>([]);
   const [municipalities, setMunicipalities] = useState<Municipality[]>([]);
+  /** El país no se elige: lo marca el negocio del carrito. */
+  const [country, setCountry] = useState<{ code: string; name: string } | null>(null);
+
+  const cartBusinessId = cart.businessId;
 
   useEffect(() => {
+    if (!cartBusinessId) return;
+
+    let cancelled = false;
+
+    // El destinatario tiene que estar en el país del negocio: no se puede
+    // comprar en una isla y entregar en otra. Se lee el negocio en lugar de
+    // guardarlo en el carrito para que no quede un país viejo si lo cambian.
     api
-      .listProvinces()
+      .getBusiness(cartBusinessId)
+      .then(({ business }) => {
+        if (cancelled) return;
+        setCountry({ code: business.countryCode, name: business.countryName });
+        return api.listProvinces(business.countryCode);
+      })
       .then((data) => {
+        if (cancelled || !data) return;
         setProvinces(data);
         setForm((current) =>
-          current.recipientProvince ? current : { ...current, recipientProvince: data[0]?.code ?? '' },
+          data.some((p) => p.code === current.recipientProvince)
+            ? current
+            : { ...current, recipientProvince: data[0]?.code ?? '' },
         );
       })
-      .catch((e: Error) => setError(e.message));
-  }, []);
+      .catch((e: Error) => {
+        if (!cancelled) setError(e.message);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [cartBusinessId]);
 
   const selectedProvince = form.recipientProvince;
 
@@ -169,7 +194,7 @@ export function CheckoutPage() {
       <form className="checkout-layout" onSubmit={submit}>
         <div>
           <div className="card" style={{ marginBottom: 'var(--space-5)' }}>
-            <h3>Tus datos (comprador en EE.UU.)</h3>
+            <h3>Tus datos</h3>
             {!user && (
               <p className="field-hint" style={{ marginBottom: 'var(--space-4)' }}>
                 <Link to="/entrar" state={{ from: '/checkout' }}>
@@ -202,7 +227,7 @@ export function CheckoutPage() {
                 />
               </div>
               <div className="field">
-                <label htmlFor="buyerPhone">Teléfono en EE.UU.</label>
+                <label htmlFor="buyerPhone">Teléfono</label>
                 <input
                   id="buyerPhone"
                   required
@@ -215,7 +240,7 @@ export function CheckoutPage() {
           </div>
 
           <div className="card">
-            <h3>Destinatario en Cuba</h3>
+            <h3>Destinatario{country ? ` en ${country.name}` : ''}</h3>
             <div className="field-row">
               <div className="field">
                 <label htmlFor="recipientName">Nombre completo</label>
@@ -228,7 +253,9 @@ export function CheckoutPage() {
                 />
               </div>
               <div className="field">
-                <label htmlFor="recipientPhone">Teléfono en Cuba</label>
+                <label htmlFor="recipientPhone">
+                  Teléfono{country ? ` en ${country.name}` : ""}
+                </label>
                 <input
                   id="recipientPhone"
                   required

@@ -1,8 +1,11 @@
 # Nexoo
 
-Plataforma para comprar en negocios locales de Cuba (Pinar del Río y La Habana) desde EE.UU. y
-entregar el pedido a un familiar en la isla. El comprador paga con tarjeta; la plataforma
-liquida después a cada negocio.
+Plataforma para comprar en negocios locales del Caribe desde fuera y entregar el pedido a un
+familiar allá mismo. El comprador paga con tarjeta; la plataforma liquida después a cada negocio.
+
+La geografía son datos, no código: países, provincias y municipios se gestionan desde el panel, y el
+sitio arrancó con Cuba porque es donde había negocios. Añadir otra isla es dar de alta el país y sus
+provincias, sin tocar nada.
 
 ## Arquitectura
 
@@ -31,7 +34,8 @@ supabase/seed.sql    catálogo de prueba
 | ------------- | --------------------------------------------------------------------------------------------------------- |
 | `businesses`  | name, description, logo_url, province, municipality_id/municipality, contact_phone, active                   |
 | `business_categories` | business_id + category_id (un negocio puede ofrecer varios servicios)                               |
-| `provinces`   | code (PK, p. ej. `LaHabana`), name, active                                                                  |
+| `countries`   | code (PK, ISO-2: `CU`, `DO`…), name, phone_prefix, active                                                   |
+| `provinces`   | code (PK, único en todo el marketplace: `CUHabana`), country_code, name, active                             |
 | `municipalities` | province_code, name, active (único por provincia)                                                        |
 | `categories`  | name (único), description, active — tipo de servicio del negocio                                            |
 | `products`    | business_id, name, price_usd, photo_url, available                                                          |
@@ -328,3 +332,20 @@ comprador y del destinatario → pago con tarjeta en Stripe → el webhook marca
 ## Fuera del alcance del MVP
 
 Pagos automáticos, split de comisiones, multi-idioma y SMS.
+
+### Geografía y países
+
+`countries` → `provinces` → `municipalities`, los tres gestionables desde **Provincias y
+municipios** en el panel. Apagar un nivel esconde los de abajo: un país inactivo saca del catálogo
+sus provincias y, con ellas, sus negocios.
+
+El país **no se guarda** en `businesses` ni en `orders`: se deduce de la provincia, que ya está en
+los dos. Así no hay dos columnas que puedan quedar desalineadas, y `create_order()` no cambia.
+
+El código de la provincia es la clave primaria, así que es único en todo el marketplace y no dentro
+de su país: 'Santiago' existe en Cuba y en República Dominicana, y por eso se usan con prefijo
+(`CUSantiago`, `DOSantiago`). El formulario del panel lo recuerda al crearlas.
+
+En el checkout el país **no se elige**: lo marca el negocio que esté en el carrito, y solo se
+ofrecen sus provincias. No se puede comprar en una isla y entregar en otra, que es justo lo que
+`create_order()` no sabría preparar.

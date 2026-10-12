@@ -90,6 +90,7 @@ export function ProductPage() {
         <div className="product-detail-info">
           <h1 className="page-title">{product.name}</h1>
           <p className="page-subtitle">
+            <span className="tag">{business.countryName}</span>
             <span className="tag">{business.provinceName}</span> Vendido por{' '}
             <Link to={`/negocios/${business.id}`}>{business.name}</Link>, {business.municipality}
           </p>

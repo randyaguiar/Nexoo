@@ -11,6 +11,8 @@ import type {
   BusinessInput,
   Category,
   CategoryInput,
+  CountryInput,
+  CountryRef,
   CreateOrderInput,
   Municipality,
   MunicipalityInput,
@@ -49,6 +51,8 @@ interface BusinessRow {
   name: string;
   description: string | null;
   logo_url: string | null;
+  country_code: string | null;
+  country_name: string | null;
   province: Province;
   province_name: string | null;
   municipality_id: string | null;
@@ -84,6 +88,8 @@ const toBusiness = (row: BusinessRow, productCount: number): Business => ({
   name: row.name,
   description: row.description,
   logoUrl: row.logo_url,
+  countryCode: row.country_code ?? '',
+  countryName: row.country_name ?? '',
   province: row.province,
   provinceName: row.province_name ?? row.province,
   municipalityId: row.municipality_id,
@@ -141,7 +147,7 @@ interface OrderRow {
   notes: string | null;
   created_at: string;
   businesses: { name: string } | null;
-  provinces: { name: string } | null;
+  provinces: { name: string; countries: { code: string; name: string } | null } | null;
   order_items: OrderItemRow[];
 }
 
@@ -152,6 +158,10 @@ const toOrder = (row: OrderRow): Order => ({
   buyerPhone: row.buyer_phone,
   recipientName: row.recipient_name,
   recipientPhone: row.recipient_phone,
+  // El país se deduce de la provincia: no hay una columna que pueda quedar
+  // desalineada con la otra.
+  recipientCountry: row.provinces?.countries?.code ?? null,
+  recipientCountryName: row.provinces?.countries?.name ?? null,
   recipientProvince: row.recipient_province,
   recipientProvinceName: row.provinces?.name ?? row.recipient_province,
   recipientMunicipality: row.recipient_municipality,
@@ -208,8 +218,23 @@ const saveBusiness = async (id: string | null, input: BusinessInput): Promise<vo
   if (error) fail(error);
 };
 
+interface CountryRow {
+  code: string;
+  name: string;
+  phone_prefix: string | null;
+  active: boolean;
+}
+
+const toCountry = (row: CountryRow): CountryRef => ({
+  code: row.code,
+  name: row.name,
+  phonePrefix: row.phone_prefix,
+  active: row.active,
+});
+
 interface ProvinceRow {
   code: string;
+  country_code: string;
   name: string;
   active: boolean;
 }
@@ -430,19 +455,40 @@ async function invokeManageAdmins(body: Record<string, unknown>): Promise<void> 
   throw new Error(error.message);
 }
 
+/** Las columnas de `business_catalog`, que se piden desde cuatro sitios. */
+// En una sola línea y `as const` a propósito: supabase-js deduce los tipos de la
+// fila a partir del literal, así que partirlo en trozos deja el resultado en
+// `any` y se pierde la comprobación.
+const BUSINESS_COLUMNS =
+  'id, name, description, logo_url, country_code, country_name, province, province_name, municipality_id, municipality, category_ids, category_names, contact_phone, active, product_count' as const;
+
 const BUSINESS_LOGOS_BUCKET = 'business-logos';
 const PRODUCT_PHOTOS_BUCKET = 'product-photos';
 
 export const api = {
-  async listProvinces(): Promise<ProvinceRef[]> {
+  /** Los países abiertos al público: las policies esconden los desactivados. */
+  async listCountries(): Promise<CountryRef[]> {
     const { data, error } = await supabase
-      .from('provinces')
-      .select('code, name, active')
+      .from('countries')
+      .select('code, name, phone_prefix, active')
       .order('name');
 
     if (error) fail(error);
+    return ((data ?? []) as CountryRow[]).map(toCountry);
+  },
+
+  async listProvinces(country?: string | null): Promise<ProvinceRef[]> {
+    let query = supabase.from('provinces').select('code, country_code, name, active').order('name');
+
+    if (country) {
+      query = query.eq('country_code', country);
+    }
+
+    const { data, error } = await query;
+    if (error) fail(error);
     return ((data ?? []) as ProvinceRow[]).map((row) => ({
       code: row.code,
+      countryCode: row.country_code,
       name: row.name,
       active: row.active,
     }));
@@ -476,14 +522,17 @@ export const api = {
   async listBusinesses(
     province?: Province | null,
     categoryId?: string | null,
+    country?: string | null,
   ): Promise<Business[]> {
     let query = supabase
       .from('business_catalog')
-      .select(
-        'id, name, description, logo_url, province, province_name, municipality_id, municipality, category_ids, category_names, contact_phone, active, product_count',
-      )
+      .select(BUSINESS_COLUMNS)
       .eq('active', true)
       .order('name');
+
+    if (country) {
+      query = query.eq('country_code', country);
+    }
 
     if (province) {
       query = query.eq('province', province);
@@ -502,7 +551,7 @@ export const api = {
   async getBusiness(id: string): Promise<BusinessDetail> {
     const { data, error } = await supabase
       .from('business_catalog')
-      .select('id, name, description, logo_url, province, province_name, municipality_id, municipality, category_ids, category_names, contact_phone, active, product_count')
+      .select(BUSINESS_COLUMNS)
       .eq('id', id)
       .maybeSingle();
 
@@ -543,9 +592,7 @@ export const api = {
 
     const { data: businessRow, error: businessError } = await supabase
       .from('business_catalog')
-      .select(
-        'id, name, description, logo_url, province, province_name, municipality_id, municipality, category_ids, category_names, contact_phone, active, product_count',
-      )
+      .select(BUSINESS_COLUMNS)
       .eq('id', product.businessId)
       .maybeSingle();
 
@@ -702,7 +749,7 @@ export const api = {
     async listMyOrders(): Promise<Order[]> {
       const { data, error } = await supabase
         .from('orders')
-        .select('*, businesses(name), provinces(name), order_items(*)')
+        .select('*, businesses(name), provinces(name, countries(code, name)), order_items(*)')
         .order('created_at', { ascending: false });
 
       if (error) fail(error);
@@ -897,7 +944,7 @@ export const api = {
     async listBusinesses(): Promise<Business[]> {
       const { data, error } = await supabase
         .from('business_catalog')
-        .select('id, name, description, logo_url, province, province_name, municipality_id, municipality, category_ids, category_names, contact_phone, active, product_count')
+        .select(BUSINESS_COLUMNS)
         .order('name');
 
       if (error) fail(error);
@@ -907,17 +954,72 @@ export const api = {
       );
     },
 
-    async createProvince(input: ProvinceInput): Promise<void> {
+    /** Todos los países, incluidos los apagados: el panel los gestiona. */
+    async listCountries(): Promise<CountryRef[]> {
+      const { data, error } = await supabase
+        .from('countries')
+        .select('code, name, phone_prefix, active')
+        .order('name');
+
+      if (error) fail(error);
+      return ((data ?? []) as CountryRow[]).map(toCountry);
+    },
+
+    async createCountry(input: CountryInput): Promise<void> {
+      const { error } = await supabase.from('countries').insert({
+        code: input.code.trim().toUpperCase(),
+        name: input.name.trim(),
+        phone_prefix: input.phonePrefix.trim() || null,
+        active: input.active,
+      });
+      if (error) fail(error);
+    },
+
+    async updateCountry(code: string, input: CountryInput): Promise<void> {
       const { error } = await supabase
-        .from('provinces')
-        .insert({ code: input.code, name: input.name, active: input.active });
+        .from('countries')
+        .update({
+          code: input.code.trim().toUpperCase(),
+          name: input.name.trim(),
+          phone_prefix: input.phonePrefix.trim() || null,
+          active: input.active,
+        })
+        .eq('code', code);
+      if (error) fail(error);
+    },
+
+    /** Si el país ya tiene provincias, la FK impide borrarlo. */
+    async deleteCountry(code: string): Promise<void> {
+      const { error } = await supabase.from('countries').delete().eq('code', code);
+      if (error) {
+        if (error.code === '23503') {
+          throw new Error(
+            'El país tiene provincias asociadas. Desactívalo en lugar de borrarlo.',
+          );
+        }
+        fail(error);
+      }
+    },
+
+    async createProvince(input: ProvinceInput): Promise<void> {
+      const { error } = await supabase.from('provinces').insert({
+        code: input.code,
+        country_code: input.countryCode,
+        name: input.name,
+        active: input.active,
+      });
       if (error) fail(error);
     },
 
     async updateProvince(code: string, input: ProvinceInput): Promise<void> {
       const { error } = await supabase
         .from('provinces')
-        .update({ code: input.code, name: input.name, active: input.active })
+        .update({
+          code: input.code,
+          country_code: input.countryCode,
+          name: input.name,
+          active: input.active,
+        })
         .eq('code', code);
       if (error) fail(error);
     },
@@ -1109,7 +1211,7 @@ export const api = {
     async listOrders(status?: OrderStatus | null, businessId?: string | null): Promise<Order[]> {
       let query = supabase
         .from('orders')
-        .select('*, businesses(name), provinces(name), order_items(*)')
+        .select('*, businesses(name), provinces(name, countries(code, name)), order_items(*)')
         .order('created_at', { ascending: false });
 
       if (status) {

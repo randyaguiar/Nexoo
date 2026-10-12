@@ -8,7 +8,7 @@ interface LogoMarkProps {
 
 /**
  * Marca Nexoo: dos anillos enlazados (la "oo" del nombre) que representan la
- * conexión entre quien compra en EE.UU. y quien recibe en Cuba.
+ * conexión entre quien compra desde fuera y quien recibe en la isla.
  */
 export function LogoMark({ size = 36, className }: LogoMarkProps) {
   // useId incluye ":" y eso rompe url(#id) en algunos navegadores.

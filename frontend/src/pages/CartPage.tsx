@@ -14,7 +14,7 @@ export function CartPage() {
         <h1 className="page-title">Tu carrito</h1>
         <div className="empty-state">
           <h3>Tu carrito está vacío</h3>
-          <p>Elige un negocio en Cuba y agrega productos para tu familia.</p>
+          <p>Elige un negocio y agrega productos para tu familia.</p>
           <Link className="button" to="/">
             Explorar el catálogo
           </Link>

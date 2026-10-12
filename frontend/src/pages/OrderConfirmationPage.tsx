@@ -109,7 +109,7 @@ export function OrderConfirmationPage() {
       </div>
 
       <div className="card" style={{ marginTop: 'var(--space-5)' }}>
-        <h3>Entrega en Cuba</h3>
+        <h3>Entrega{order.recipientCountryName ? ` en ${order.recipientCountryName}` : ''}</h3>
         <p>
           {order.recipientName} · {order.recipientPhone}
           <br />

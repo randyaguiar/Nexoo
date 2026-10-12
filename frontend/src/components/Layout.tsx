@@ -73,14 +73,13 @@ export function Layout() {
             <div>
               <LogoMark size={32} />
               <p style={{ marginTop: 'var(--space-3)', maxWidth: '38ch' }}>
-                Compra desde EE.UU. en negocios de Pinar del Río y La Habana, y entrega a tu familia
-                en Cuba.
+                Compra en negocios locales del Caribe y entrega a tu familia allá mismo.
               </p>
             </div>
             <div>
               <h4>Cómo funciona</h4>
               <ul>
-                <li>Elige un negocio en Cuba</li>
+                <li>Elige el país y el negocio</li>
                 <li>Arma el pedido y confírmalo</li>
                 <li>Paga con tarjeta y entregamos</li>
               </ul>

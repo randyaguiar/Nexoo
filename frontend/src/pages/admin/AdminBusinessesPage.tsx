@@ -220,7 +220,7 @@ export function AdminBusinessesPage() {
                   <td>
                     <span className="cell-icon">
                       <MapPinIcon size={14} />
-                      {business.provinceName}, {business.municipality}
+                      {business.countryName} · {business.provinceName}, {business.municipality}
                     </span>
                   </td>
                   <td>
@@ -307,7 +307,7 @@ export function AdminBusinessesPage() {
                   id="contactPhone"
                   type="tel"
                   maxLength={40}
-                  placeholder="+53 5 000 0000"
+                  placeholder="Teléfono de contacto"
                   value={form.contactPhone ?? ''}
                   onChange={(e) => set('contactPhone', e.target.value)}
                 />

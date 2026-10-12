@@ -317,3 +317,47 @@ do $$ begin
   end;
 end $$;
 \echo 'M OK: rechaza una pasarela desconocida'
+
+-- Países -----------------------------------------------------------------------
+
+-- N) El país sale en el catálogo deducido de la provincia, sin columna propia.
+reset role;
+select 'N OK: el catálogo dice '||country_code||' / '||country_name
+from public.business_catalog limit 1;
+
+-- O) El pedido también lo deduce, para los correos y la confirmación.
+select 'O OK: get_order devuelve '||(public.get_order(:'oid') ->> 'recipientCountryName');
+
+-- P) Apagar un país esconde sus provincias del público.
+update public.countries set active = false where code = 'CU';
+set role anon;
+select case when (select count(*) from public.provinces) = 0
+  then 'P OK: con el país apagado no se ven sus provincias' else 'P FALLO' end;
+
+reset role;
+update public.countries set active = true where code = 'CU';
+set role anon;
+select case when (select count(*) from public.provinces) > 0
+  then 'Q OK: al encenderlo vuelven' else 'Q FALLO' end;
+
+-- R) Un país con provincias no se borra: la FK lo impide.
+reset role;
+do $$ begin
+  begin
+    delete from public.countries where code = 'CU';
+    raise exception 'FALLO R: borró un país con provincias';
+  exception when foreign_key_violation then null;
+  end;
+end $$;
+\echo 'R OK: no se borra un país con provincias'
+
+-- S) Las formas de pago al negocio dejaron de nombrar una isla.
+do $$ begin
+  begin
+    insert into public.business_payout_accounts (business_id, method, holder_name, contact)
+    values ((select id from public.businesses limit 1), 'cash_cuba', 'X', 'Y');
+    raise exception 'FALLO S: aceptó un método con nombre de país';
+  exception when check_violation then null;
+  end;
+end $$;
+\echo 'S OK: los métodos de pago son genéricos'

@@ -1,8 +1,24 @@
-/** Código de provincia tal como está en la tabla `provinces` (p. ej. 'LaHabana'). */
+/** Código ISO de país tal como está en la tabla `countries` (p. ej. 'CU'). */
+export type Country = string;
+
+export interface CountryRef {
+  code: Country;
+  name: string;
+  /** Para el marcador de los campos de teléfono. */
+  phonePrefix: string | null;
+  active: boolean;
+}
+
+/**
+ * Código de provincia tal como está en la tabla `provinces`. Es único en todo
+ * el marketplace, no dentro de su país: por eso se usan con prefijo
+ * ('CU-Habana', 'DO-Santiago').
+ */
 export type Province = string;
 
 export interface ProvinceRef {
   code: Province;
+  countryCode: Country;
   name: string;
   active: boolean;
 }
@@ -26,8 +42,16 @@ export interface Category {
   active: boolean;
 }
 
+export interface CountryInput {
+  code: Country;
+  name: string;
+  phonePrefix: string;
+  active: boolean;
+}
+
 export interface ProvinceInput {
   code: Province;
+  countryCode: Country;
   name: string;
   active: boolean;
 }
@@ -71,6 +95,8 @@ export interface Business {
   name: string;
   description: string | null;
   logoUrl: string | null;
+  countryCode: Country;
+  countryName: string;
   province: Province;
   provinceName: string;
   municipalityId: string | null;
@@ -172,6 +198,8 @@ export interface Order {
   buyerPhone: string;
   recipientName: string;
   recipientPhone: string;
+  recipientCountry: Country | null;
+  recipientCountryName: string | null;
   recipientProvince: Province;
   recipientProvinceName: string;
   recipientMunicipality: string;
@@ -363,13 +391,19 @@ export interface BusinessApplicationInput {
 }
 
 /** Por dónde le llega el dinero al negocio. */
-export type PayoutMethod = 'zelle_us' | 'cash_cuba' | 'mlc_cuba' | 'transfer_cuba';
+export type PayoutMethod =
+  | 'zelle_us'
+  | 'cash_local'
+  | 'card_local'
+  | 'transfer_local'
+  | 'other';
 
 export const PAYOUT_METHODS: { value: PayoutMethod; label: string }[] = [
   { value: 'zelle_us', label: 'Zelle (EE.UU.)' },
-  { value: 'cash_cuba', label: 'Efectivo en Cuba' },
-  { value: 'mlc_cuba', label: 'Tarjeta MLC' },
-  { value: 'transfer_cuba', label: 'Transferencia en Cuba' },
+  { value: 'cash_local', label: 'Efectivo en el país del negocio' },
+  { value: 'card_local', label: 'Tarjeta local' },
+  { value: 'transfer_local', label: 'Transferencia local' },
+  { value: 'other', label: 'Otro (se detalla abajo)' },
 ];
 
 export const payoutMethodLabel = (method: string): string =>

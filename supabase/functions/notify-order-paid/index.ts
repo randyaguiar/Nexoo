@@ -159,16 +159,23 @@ Deno.serve(async (request: Request): Promise<Response> => {
   // sin sesión, así que la dirección vive en `admins`, con el resto del panel.
   const [{ data: staff }, { data: provinceRow }] = await Promise.all([
     admin.from('admins').select('email').eq('business_id', order.business_id),
-    admin.from('provinces').select('name').eq('code', order.recipient_province).maybeSingle(),
+    // El país se deduce de la provincia; no hay columna que pueda desalinearse.
+    admin
+      .from('provinces')
+      .select('name, countries(name)')
+      .eq('code', order.recipient_province)
+      .maybeSingle(),
   ]);
 
   const province = provinceRow?.name ?? order.recipient_province;
+  const country = (provinceRow as { countries?: { name: string } | null } | null)?.countries?.name;
   const businessEmails = ((staff ?? []) as { email: string }[]).map((s) => s.email).filter(Boolean);
 
   const recipient = [
     order.recipient_name,
     order.recipient_phone,
-    `${order.recipient_address}, ${order.recipient_municipality}, ${province}`,
+    `${order.recipient_address}, ${order.recipient_municipality}, ${province}` +
+      (country ? `, ${country}` : ''),
   ];
 
   const apiKey = Deno.env.get('RESEND_API_KEY');
@@ -190,10 +197,10 @@ Deno.serve(async (request: Request): Promise<Response> => {
       `Negocio: ${businessName}`,
       `Cobrado: ${money(cobrado)} | Se le debe al negocio: ${money(coste)} | Margen: ${money(cobrado - coste)}`,
       '',
-      'Comprador (EE.UU.):',
+      'Comprador:',
       `  ${order.buyer_name} / ${order.buyer_email} / ${order.buyer_phone}`,
       '',
-      'Destinatario (Cuba):',
+      'Destinatario:',
       ...recipient.map((l) => `  ${l}`),
       '',
       'Productos:',
