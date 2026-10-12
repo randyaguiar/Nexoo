@@ -7,6 +7,10 @@ insert into auth.users (id, email) values
 insert into public.admins (user_id, email, role) values
   ('11111111-1111-1111-1111-111111111111','owner@nexoo.app','owner');
 
+-- El flujo entero se apoya en La Habana, y la migración de países dejó Cuba
+-- apagado. Encenderlo es parte del escenario de la prueba, no del producto.
+update public.countries set active = true where code = 'CU';
+
 insert into public.categories (id, name) values ('33333333-3333-3333-3333-333333333333','Dulcería');
 insert into public.municipalities (id, province_code, name)
 values ('44444444-4444-4444-4444-444444444444','LaHabana','Playa');
@@ -331,13 +335,13 @@ select 'O OK: get_order devuelve '||(public.get_order(:'oid') ->> 'recipientCoun
 -- P) Apagar un país esconde sus provincias del público.
 update public.countries set active = false where code = 'CU';
 set role anon;
-select case when (select count(*) from public.provinces) = 0
+select case when (select count(*) from public.provinces where country_code = 'CU') = 0
   then 'P OK: con el país apagado no se ven sus provincias' else 'P FALLO' end;
 
 reset role;
 update public.countries set active = true where code = 'CU';
 set role anon;
-select case when (select count(*) from public.provinces) > 0
+select case when (select count(*) from public.provinces where country_code = 'CU') > 0
   then 'Q OK: al encenderlo vuelven' else 'Q FALLO' end;
 
 -- R) Un país con provincias no se borra: la FK lo impide.

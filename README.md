@@ -1,6 +1,6 @@
 # Nexoo
 
-Plataforma para comprar en negocios locales del Caribe desde fuera y entregar el pedido a un
+Plataforma para comprar en negocios locales de América Latina desde fuera y entregar el pedido a un
 familiar allá mismo. El comprador paga con tarjeta; la plataforma liquida después a cada negocio.
 
 La geografía son datos, no código: países, provincias y municipios se gestionan desde el panel, y el

@@ -73,7 +73,7 @@ export function Layout() {
             <div>
               <LogoMark size={32} />
               <p style={{ marginTop: 'var(--space-3)', maxWidth: '38ch' }}>
-                Compra en negocios locales del Caribe y entrega a tu familia allá mismo.
+                Compra en negocios locales de América Latina y entrega a tu familia allá mismo.
               </p>
             </div>
             <div>

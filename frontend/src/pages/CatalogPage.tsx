@@ -100,7 +100,7 @@ export function CatalogPage() {
             className={`chip ${country === null ? 'active' : ''}`}
             onClick={() => setFilter('pais', null)}
           >
-            Todo el Caribe
+            Todos los países
           </button>
           {countries.map((c) => (
             <button
