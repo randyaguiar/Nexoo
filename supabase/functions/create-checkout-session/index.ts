@@ -112,6 +112,14 @@ async function openStripe(order: OrderRow, siteUrl: string): Promise<Opened> {
 }
 
 /**
+ * Los permisos que se marcan al crear la API key en TropiPay ("Inbound
+ * Transfers" y "Allow external charge"), que es el mínimo para crear un enlace
+ * de cobro y recibir el dinero. Si el login los rechaza se reintenta sin pedir
+ * ninguno: los nombres exactos no están documentados y la clave ya los lleva.
+ */
+const TROPIPAY_SCOPES = ['ALLOW_PAYMENT_IN', 'ALLOW_EXTERNAL_CHARGE'];
+
+/**
  * El bearer con el que se llama a TropiPay.
  *
  * Su documentación pública no explica la autenticación: en un ejemplo usa una
@@ -127,15 +135,22 @@ async function tropipayToken(
 ): Promise<string | null> {
   if (clientSecret.startsWith('sk_') || clientSecret.startsWith('pk_')) return clientSecret;
 
-  const auth = await fetch(`${base}/api/v3/access/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify({
-      client_id: clientId,
-      client_secret: clientSecret,
-      scopes: ['ALLOW_GET_PROFILE_DATA', 'ALLOW_PAYMENT_IN'],
-    }),
-  });
+  const login = (scopes: string[] | null) =>
+    fetch(`${base}/api/v3/access/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(
+        scopes
+          ? { client_id: clientId, client_secret: clientSecret, scopes }
+          : { client_id: clientId, client_secret: clientSecret },
+      ),
+    });
+
+  let auth = await login(TROPIPAY_SCOPES);
+  if (!auth.ok) {
+    await auth.body?.cancel();
+    auth = await login(null);
+  }
 
   if (!auth.ok) {
     console.error('TropiPay rechazó las credenciales:', auth.status, await auth.text());
