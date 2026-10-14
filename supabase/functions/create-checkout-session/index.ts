@@ -112,53 +112,81 @@ async function openStripe(order: OrderRow, siteUrl: string): Promise<Opened> {
 }
 
 /**
- * Los permisos que se marcan al crear la API key en TropiPay ("Inbound
- * Transfers" y "Allow external charge"), que es el mínimo para crear un enlace
- * de cobro y recibir el dinero. Si el login los rechaza se reintenta sin pedir
- * ninguno: los nombres exactos no están documentados y la clave ya los lleva.
+ * Los permisos que se marcan al crear la API key en TropiPay ("Transferencias
+ * Entrada" y "Recarga externa"), que es el mínimo para crear un enlace de cobro
+ * y recibir el dinero.
  */
 const TROPIPAY_SCOPES = ['ALLOW_PAYMENT_IN', 'ALLOW_EXTERNAL_CHARGE'];
 
+/** El bearer y la versión de la API que lo aceptó: las rutas van emparejadas. */
+interface TropipayAuth {
+  token: string;
+  version: 'v2' | 'v3';
+}
+
 /**
- * El bearer con el que se llama a TropiPay.
+ * Autenticación contra TropiPay.
  *
- * Su documentación pública no explica la autenticación: en un ejemplo usa una
- * clave fija al estilo Stripe (`Bearer sk_test_…`) y en otros sitios habla de un
- * token que caduca. Se admiten las dos formas, así que basta con guardar en
- * TROPIPAY_CLIENT_SECRET lo que den: si ya es una clave de API se manda tal
- * cual, y si no se canjea por un token.
+ * Su documentación pública no cuadra con lo que responde el servidor —el login
+ * que describe contesta 500—, así que se prueban por orden las dos formas
+ * conocidas: la de la documentación (v3) y la del SDK de la comunidad (v2, un
+ * OAuth `client_credentials` normal con los scopes separados por espacios). La
+ * versión que conteste manda también en el resto de llamadas.
+ *
+ * Si el secret ya parece una clave fija al estilo Stripe se usa tal cual.
  */
 async function tropipayToken(
   base: string,
   clientId: string,
   clientSecret: string,
-): Promise<string | null> {
-  if (clientSecret.startsWith('sk_') || clientSecret.startsWith('pk_')) return clientSecret;
+): Promise<TropipayAuth | null> {
+  if (clientSecret.startsWith('sk_') || clientSecret.startsWith('pk_')) {
+    return { token: clientSecret, version: 'v3' };
+  }
 
-  const login = (scopes: string[] | null) =>
-    fetch(`${base}/api/v3/access/login`, {
+  const attempts = [
+    {
+      version: 'v3' as const,
+      path: '/api/v3/access/login',
+      body: { client_id: clientId, client_secret: clientSecret, scopes: TROPIPAY_SCOPES },
+    },
+    {
+      version: 'v2' as const,
+      path: '/api/v2/access/token',
+      body: {
+        client_id: clientId,
+        client_secret: clientSecret,
+        grant_type: 'client_credentials',
+        scope: TROPIPAY_SCOPES.join(' '),
+      },
+    },
+  ];
+
+  for (const attempt of attempts) {
+    const response = await fetch(`${base}${attempt.path}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify(
-        scopes
-          ? { client_id: clientId, client_secret: clientSecret, scopes }
-          : { client_id: clientId, client_secret: clientSecret },
-      ),
+      body: JSON.stringify(attempt.body),
     });
 
-  let auth = await login(TROPIPAY_SCOPES);
-  if (!auth.ok) {
-    await auth.body?.cancel();
-    auth = await login(null);
+    if (!response.ok) {
+      console.error(
+        'TropiPay rechazó las credenciales en',
+        attempt.path,
+        response.status,
+        await response.text(),
+      );
+      continue;
+    }
+
+    const body = (await response.json()) as { access_token?: string; token?: string };
+    const token = body.access_token ?? body.token;
+    if (token) return { token, version: attempt.version };
+
+    console.error('TropiPay no devolvió token en', attempt.path);
   }
 
-  if (!auth.ok) {
-    console.error('TropiPay rechazó las credenciales:', auth.status, await auth.text());
-    return null;
-  }
-
-  const body = (await auth.json()) as { access_token?: string; token?: string };
-  return body.access_token ?? body.token ?? null;
+  return null;
 }
 
 /**
@@ -173,8 +201,8 @@ async function openTropipay(order: OrderRow, siteUrl: string, eurPerUsd: number)
   const clientSecret = Deno.env.get('TROPIPAY_CLIENT_SECRET');
   if (!clientId || !clientSecret) throw new Error('Faltan las credenciales de TropiPay');
 
-  const token = await tropipayToken(base, clientId, clientSecret);
-  if (!token) throw new Error('No se pudo autenticar contra TropiPay');
+  const auth = await tropipayToken(base, clientId, clientSecret);
+  if (!auth) throw new Error('No se pudo autenticar contra TropiPay');
 
   const eur = Number((Number(order.total_usd) * eurPerUsd).toFixed(2));
   const reasonId = Number(Deno.env.get('TROPIPAY_REASON_ID') ?? '4');
@@ -198,16 +226,22 @@ async function openTropipay(order: OrderRow, siteUrl: string, eurPerUsd: number)
     urlNotification: `${Deno.env.get('SUPABASE_URL')}/functions/v1/tropipay-webhook`,
     // No se manda `client`: TropiPay exige el objeto entero si se manda —con
     // fecha de nacimiento incluida— y esos datos no se piden en el checkout.
-    // Los recoge su propia página.
+    // Los recoge su propia página, que es también lo que hace `directPayment`
+    // en false: primero pide los datos del comprador y luego la tarjeta.
+    directPayment: false,
     paymentMethods: ['EXT'],
+    favorite: false,
+    // El enlace es de un solo pedido: no tiene sentido que siga vivo días.
+    expirationDays: 1,
+    serviceDate: new Date().toISOString().slice(0, 10),
   };
 
   if (accountId) body.accountId = Number(accountId);
 
-  const response = await fetch(`${base}/api/v3/paymentcards`, {
+  const response = await fetch(`${base}/api/${auth.version}/paymentcards`, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${auth.token}`,
       'Content-Type': 'application/json',
       Accept: 'application/json',
     },

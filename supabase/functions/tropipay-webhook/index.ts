@@ -31,50 +31,75 @@ interface Paymentcard {
 }
 
 /**
- * Los permisos que se marcan al crear la API key en TropiPay ("Inbound
- * Transfers" y "Allow external charge"), que es el mínimo para crear un enlace
- * de cobro y recibir el dinero. Si el login los rechaza se reintenta sin pedir
- * ninguno: los nombres exactos no están documentados y la clave ya los lleva.
+ * Los permisos que se marcan al crear la API key en TropiPay ("Transferencias
+ * Entrada" y "Recarga externa").
  */
 const TROPIPAY_SCOPES = ['ALLOW_PAYMENT_IN', 'ALLOW_EXTERNAL_CHARGE'];
 
+/** El bearer y la versión de la API que lo aceptó: las rutas van emparejadas. */
+interface TropipayAuth {
+  token: string;
+  version: 'v2' | 'v3';
+}
+
 /**
- * El bearer con el que se llama a TropiPay. Su documentación pública no explica
- * la autenticación: en un ejemplo usa una clave fija al estilo Stripe
- * (`Bearer sk_test_…`) y en otros habla de un token que caduca. Se admiten las
- * dos: si el secret ya parece una clave de API, se manda tal cual.
+ * Autenticación contra TropiPay. Igual que en `create-checkout-session`: la
+ * documentación pública no cuadra con lo que responde el servidor, así que se
+ * prueban la forma documentada (v3) y la del SDK de la comunidad (v2, OAuth
+ * `client_credentials`), y la que conteste manda en el resto de llamadas.
  */
-async function token(): Promise<string | null> {
+async function token(): Promise<TropipayAuth | null> {
   const clientId = Deno.env.get('TROPIPAY_CLIENT_ID');
   const clientSecret = Deno.env.get('TROPIPAY_CLIENT_SECRET');
   if (!clientId || !clientSecret) return null;
 
-  if (clientSecret.startsWith('sk_') || clientSecret.startsWith('pk_')) return clientSecret;
+  if (clientSecret.startsWith('sk_') || clientSecret.startsWith('pk_')) {
+    return { token: clientSecret, version: 'v3' };
+  }
 
-  const login = (scopes: string[] | null) =>
-    fetch(`${base}/api/v3/access/login`, {
+  const attempts = [
+    {
+      version: 'v3' as const,
+      path: '/api/v3/access/login',
+      body: { client_id: clientId, client_secret: clientSecret, scopes: TROPIPAY_SCOPES },
+    },
+    {
+      version: 'v2' as const,
+      path: '/api/v2/access/token',
+      body: {
+        client_id: clientId,
+        client_secret: clientSecret,
+        grant_type: 'client_credentials',
+        scope: TROPIPAY_SCOPES.join(' '),
+      },
+    },
+  ];
+
+  for (const attempt of attempts) {
+    const response = await fetch(`${base}${attempt.path}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify(
-        scopes
-          ? { client_id: clientId, client_secret: clientSecret, scopes }
-          : { client_id: clientId, client_secret: clientSecret },
-      ),
+      body: JSON.stringify(attempt.body),
     });
 
-  let response = await login(TROPIPAY_SCOPES);
-  if (!response.ok) {
-    await response.body?.cancel();
-    response = await login(null);
+    if (!response.ok) {
+      console.error(
+        'TropiPay rechazó las credenciales en',
+        attempt.path,
+        response.status,
+        await response.text(),
+      );
+      continue;
+    }
+
+    const body = (await response.json()) as { access_token?: string; token?: string };
+    const bearer = body.access_token ?? body.token;
+    if (bearer) return { token: bearer, version: attempt.version };
+
+    console.error('TropiPay no devolvió token en', attempt.path);
   }
 
-  if (!response.ok) {
-    console.error('TropiPay rechazó las credenciales:', response.status, await response.text());
-    return null;
-  }
-
-  const body = (await response.json()) as { access_token?: string; token?: string };
-  return body.access_token ?? body.token ?? null;
+  return null;
 }
 
 Deno.serve(async (request: Request): Promise<Response> => {
@@ -90,8 +115,8 @@ Deno.serve(async (request: Request): Promise<Response> => {
   const auth = await token();
   if (!auth) return new Response('not configured', { status: 500 });
 
-  const response = await fetch(`${base}/api/v3/paymentcards/${cardId}`, {
-    headers: { Authorization: `Bearer ${auth}`, Accept: 'application/json' },
+  const response = await fetch(`${base}/api/${auth.version}/paymentcards/${cardId}`, {
+    headers: { Authorization: `Bearer ${auth.token}`, Accept: 'application/json' },
   });
 
   if (!response.ok) {
