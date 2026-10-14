@@ -1125,6 +1125,9 @@ th {
 
 .admin-nav {
   display: flex;
+  /* En varias filas antes que en una sola con scroll: las secciones del panel
+     se ven todas al entrar, sin tener que descubrir que la barra se desplaza. */
+  flex-wrap: wrap;
   gap: var(--space-1);
   margin-bottom: var(--space-5);
   padding: var(--space-1);
@@ -1134,12 +1137,6 @@ th {
   box-shadow: var(--nexoo-shadow-sm);
   width: fit-content;
   max-width: 100%;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.admin-nav::-webkit-scrollbar {
-  display: none;
 }
 
 .admin-nav-link {
