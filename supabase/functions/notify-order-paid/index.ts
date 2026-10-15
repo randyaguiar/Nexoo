@@ -129,6 +129,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
   // correos de un pedido ajeno con solo acertar su id.
   const expected = `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`;
   if (request.headers.get('Authorization') !== expected) {
+    console.error('Llamada sin la service role: no se manda ningún correo');
     return new Response('forbidden', { status: 403 });
   }
 
@@ -288,6 +289,13 @@ Deno.serve(async (request: Request): Promise<Response> => {
 
   if (!adminEmail) console.error('ADMIN_EMAIL no configurada: sin aviso interno del pedido', ref);
   if (businessEmails.length === 0) console.error('El negocio', businessName, 'no tiene correo en admins');
+
+  // Siempre al log, salga bien o mal: si no, una ejecución correcta y una
+  // rechazada se parecen demasiado —las dos sin rastro— y no hay por dónde
+  // empezar a mirar cuando alguien dice que no le llegó nada.
+  console.log(
+    `Correos del pedido ${ref}: interno=${owner} comprador=${buyer} tienda=${business}`,
+  );
 
   return new Response(JSON.stringify({ ref, owner, buyer, business }), { status: 200 });
 });
