@@ -77,6 +77,28 @@ interface StripeEvent {
   };
 }
 
+/**
+ * Los tres correos del pedido. Se llama con `fetch` y la cabecera puesta a
+ * mano: `functions.invoke` decide por su cuenta qué Authorization manda, y
+ * `notify-order-paid` exige exactamente la service role, así que la llamada
+ * acababa en 403 y no salía ningún correo. El pedido ya está pagado, de modo
+ * que un fallo aquí solo se registra.
+ */
+async function sendOrderEmails(orderId: string): Promise<void> {
+  const response = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/notify-order-paid`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ orderId }),
+  });
+
+  if (!response.ok) {
+    console.error('No se pudieron mandar los correos:', response.status, await response.text());
+  }
+}
+
 Deno.serve(async (request: Request): Promise<Response> => {
   const secret = Deno.env.get('STRIPE_WEBHOOK_SECRET');
   if (!secret) {
@@ -130,10 +152,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
   // puede tumbar el webhook —el cobro ya está hecho—, así que solo se registra.
   if (data === true) {
     try {
-      const { error: mailError } = await admin.functions.invoke('notify-order-paid', {
-        body: { orderId },
-      });
-      if (mailError) console.error('No se pudieron mandar los correos:', mailError.message);
+      await sendOrderEmails(orderId);
     } catch (e) {
       console.error('No se pudieron mandar los correos:', (e as Error).message);
     }
