@@ -261,25 +261,31 @@ supabase functions deploy tropipay-webhook
    (`https://sandbox.tropipay.me` para probar). Opcionales: `TROPIPAY_ACCOUNT_ID` si tienes más de
    una cuenta y `TROPIPAY_REASON_ID` si el motivo por defecto no te sirve.
 
-   En `TROPIPAY_CLIENT_SECRET` va lo que te den: su documentación pública no explica la
-   autenticación —en un ejemplo usa una clave fija al estilo Stripe (`sk_test_…`) y en otros habla
-   de un token que caduca—, así que el código admite las dos. Si el secret empieza por `sk_` o
-   `pk_` se manda tal cual como bearer; si no, se canjea por un token en `/api/v3/access/login`.
+   En `TROPIPAY_CLIENT_SECRET` va lo que te den: su documentación pública describe un login
+   (`/api/v3/access/login` con los scopes en un array) que el servidor contesta con un 500, mientras
+   que su SDK de la comunidad usa un OAuth normal (`/api/v2/access/token`, `client_credentials` y
+   los scopes separados por espacios). El código prueba las dos por orden, y la versión que conteste
+   manda también en el resto de rutas. Si el secret empieza por `sk_` o `pk_` se usa tal cual.
+
+   La API key se crea en el panel de TropiPay con dos permisos: *Transferencias Entrada* y *Recarga
+   externa*. **El campo de IP se deja vacío**: las Edge Functions no salen por una IP fija y una
+   credencial atada a una IP devuelve `Forbidden` siempre.
 2. El aviso de pago no se configura en su panel: la URL se manda en cada cobro
    (`urlNotification`), apuntando a `tropipay-webhook`.
-3. **Calibración, una sola vez.** Qué valor del campo `state` significa "pagado" no está
-   documentado, así que el webhook no lo adivina: sin `TROPIPAY_PAID_STATES` no marca nada y deja el
-   valor observado en su log. Haz un cobro en sandbox, mira el log de `tropipay-webhook`, y guarda
-   ese número como `TROPIPAY_PAID_STATES` (admite varios separados por comas).
+3. `TROPIPAY_PAID_STATES` es opcional y casi nunca hace falta: el aviso trae `stateStr`
+   (`completed`, `processing`, `failed`…) y es lo que se mira. Solo si algún día llega un aviso sin
+   `stateStr` se usa el número de `state`, y entonces hay que decirle cuáles cuentan como pagado
+   (admite varios separados por comas).
 
 Las tres funciones van con `verify_jwt = false` (`supabase/config.toml`): a la primera la llama un
 comprador que puede no tener cuenta, y a las otras dos las llaman las pasarelas, que no mandan un
 JWT.
 
-> Stripe firma sus avisos con un HMAC que se comprueba. Del esquema de firma de TropiPay no hay
-> documentación suficiente, así que `tropipay-webhook` **no se fía del cuerpo del aviso**: lo usa
-> solo para saber qué cobro mirar, y después vuelve a leer ese cobro contra la API de TropiPay con
-> nuestras credenciales. Un aviso falsificado no puede dar nada por pagado.
+> Stripe firma sus avisos con un HMAC y se comprueba. TropiPay también firma los suyos:
+> `sha256(bankOrderCode + clientId + clientSecret + importe)`. Si la firma cuadra, el estado que
+> trae el aviso vale; si no, `tropipay-webhook` vuelve a leer el cobro contra su API con nuestras
+> credenciales y solo cuenta eso. Si ninguna de las dos cosas confirma el cobro, el pedido se queda
+> como está: un aviso falsificado no puede dar nada por pagado.
 
 ### 6. Correos del pedido
 
