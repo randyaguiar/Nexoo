@@ -139,7 +139,11 @@ Deno.serve(async (request: Request): Promise<Response> => {
     : PAID_STATES.includes(String(notice.state));
 
   if (!paid) {
-    console.log(`Pedido ${orderId} todavía no pagado: state=${notice.state}`);
+    // status KO con state 4 es un cobro rechazado por la pasarela; KO con otros
+    // estados, uno que se quedó a medias. Ninguno toca el pedido.
+    console.log(
+      `Pedido ${orderId} todavía no pagado: status=${payload.status} state=${notice.state}`,
+    );
     return new Response(JSON.stringify({ orderId, state: notice.state, updated: false }), {
       status: 200,
     });
