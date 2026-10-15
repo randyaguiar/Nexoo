@@ -272,20 +272,21 @@ supabase functions deploy tropipay-webhook
    credencial atada a una IP devuelve `Forbidden` siempre.
 2. El aviso de pago no se configura en su panel: la URL se manda en cada cobro
    (`urlNotification`), apuntando a `tropipay-webhook`.
-3. `TROPIPAY_PAID_STATES` es opcional y casi nunca hace falta: el aviso trae `stateStr`
-   (`completed`, `processing`, `failed`…) y es lo que se mira. Solo si algún día llega un aviso sin
-   `stateStr` se usa el número de `state`, y entonces hay que decirle cuáles cuentan como pagado
-   (admite varios separados por comas).
+3. `TROPIPAY_PAID_STATES` casi nunca hace falta: por defecto cuenta como pagado el estado `5`,
+   que es el que manda TropiPay cuando la tarjeta ya se ha cobrado. Que su panel lo siga enseñando
+   como *Pendiente* es la liquidación al saldo, no el cobro —igual que con Stripe, donde el pedido
+   se da por pagado aunque el dinero tarde días—. Si algún día usan otro número, se cambia con ese
+   secret (admite varios separados por comas) sin tocar código.
 
 Las tres funciones van con `verify_jwt = false` (`supabase/config.toml`): a la primera la llama un
 comprador que puede no tener cuenta, y a las otras dos las llaman las pasarelas, que no mandan un
 JWT.
 
-> Stripe firma sus avisos con un HMAC y se comprueba. TropiPay también firma los suyos:
-> `sha256(bankOrderCode + clientId + clientSecret + importe)`. Si la firma cuadra, el estado que
-> trae el aviso vale; si no, `tropipay-webhook` vuelve a leer el cobro contra su API con nuestras
-> credenciales y solo cuenta eso. Si ninguna de las dos cosas confirma el cobro, el pedido se queda
-> como está: un aviso falsificado no puede dar nada por pagado.
+> Stripe firma sus avisos con un HMAC y se comprueba. TropiPay también: manda tres firmas
+> —`signature`, `signaturev2` y `signaturev3`— que son `sha256(bankOrderCode + clientId +
+> clientSecret + importe)`. `tropipay-webhook` no toca el pedido si ninguna cuadra, y deja el aviso
+> entero en el log. Esto no es un detalle: el comprador conoce el id de su propio pedido, porque
+> está en su URL, así que sin firma el aviso no prueba nada.
 
 ### 6. Correos del pedido
 
