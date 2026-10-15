@@ -184,12 +184,28 @@ async function readPaymentcard(cardId: string): Promise<Paymentcard | null> {
     return null;
   }
 
-  return (await response.json()) as Paymentcard;
+  const card = (await response.json()) as Paymentcard;
+
+  // Qué campos trae su cobro no está documentado y hace falta saberlo para
+  // decidir si uno está pagado. Se listan los nombres, no el contenido: ahí
+  // dentro van los datos que el comprador puso en su pasarela.
+  console.log(
+    'Cobro', cardId,
+    'state =', card.state,
+    'stateStr =', card.stateStr,
+    'campos =', Object.keys(card).join(','),
+  );
+
+  return card;
 }
 
 Deno.serve(async (request: Request): Promise<Response> => {
   const payload = (await request.json().catch(() => ({}))) as Callback;
   const notice = payload.data ?? {};
+
+  // El aviso entero al log: es lo que hay para cuadrar la firma y para saber
+  // qué estados usa TropiPay. No lleva datos del comprador, solo ids e importes.
+  console.log('Aviso de TropiPay:', JSON.stringify(payload));
 
   // `reference` es lo que mandamos al abrir el cobro: el id del pedido.
   const orderId = notice.reference ?? null;
