@@ -211,6 +211,14 @@ async function openTropipay(order: OrderRow, siteUrl: string, eurPerUsd: number)
   if (!auth) throw new Error('No se pudo autenticar contra TropiPay');
 
   const eur = Number((Number(order.total_usd) * eurPerUsd).toFixed(2));
+
+  // TropiPay no cobra menos de 100 céntimos. Sin esto, un pedido barato —un
+  // dólar son 92 céntimos al cambio— se rechazaría sin que el comprador
+  // entienda por qué.
+  if (Math.round(eur * 100) < 100) {
+    throw new Error(`Importe por debajo del mínimo de TropiPay: ${eur} EUR`);
+  }
+
   const reasonId = Number(Deno.env.get('TROPIPAY_REASON_ID') ?? '4');
   const accountId = Deno.env.get('TROPIPAY_ACCOUNT_ID');
 
