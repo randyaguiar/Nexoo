@@ -236,8 +236,10 @@ async function openTropipay(order: OrderRow, siteUrl: string, eurPerUsd: number)
     directPayment: false,
     paymentMethods: ['EXT'],
     favorite: false,
-    // El enlace es de un solo pedido: no tiene sentido que siga vivo días.
-    expirationDays: 1,
+    // No es la caducidad del enlace —eso es `expirationDate`—, sino los días
+    // que TropiPay retiene el dinero antes de abonarlo: cero, que se liquide
+    // cuanto antes.
+    expirationDays: 0,
     serviceDate: new Date().toISOString().slice(0, 10),
   };
 
