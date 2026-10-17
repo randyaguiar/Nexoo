@@ -261,11 +261,10 @@ supabase functions deploy tropipay-webhook
    (`https://sandbox.tropipay.me` para probar). Opcionales: `TROPIPAY_ACCOUNT_ID` si tienes más de
    una cuenta y `TROPIPAY_REASON_ID` si el motivo por defecto no te sirve.
 
-   En `TROPIPAY_CLIENT_SECRET` va lo que te den: su documentación pública describe un login
-   (`/api/v3/access/login` con los scopes en un array) que el servidor contesta con un 500, mientras
-   que su SDK de la comunidad usa un OAuth normal (`/api/v2/access/token`, `client_credentials` y
-   los scopes separados por espacios). El código prueba las dos por orden, y la versión que conteste
-   manda también en el resto de rutas. Si el secret empieza por `sk_` o `pk_` se usa tal cual.
+   En `TROPIPAY_CLIENT_SECRET` va lo que te den. El token se pide con un OAuth normal
+   (`client_credentials`, los scopes separados por espacios) en `/api/v3/access/token`, y si esa ruta
+   falla se reintenta en `/api/v2/access/token`; la versión que conteste manda también en el resto de
+   rutas. Si el secret empieza por `sk_` o `pk_` se usa tal cual.
 
    La API key se crea en el panel de TropiPay con dos permisos: *Transferencias Entrada* y *Recarga
    externa*. **El campo de IP se deja vacío**: las Edge Functions no salen por una IP fija y una
@@ -283,8 +282,8 @@ comprador que puede no tener cuenta, y a las otras dos las llaman las pasarelas,
 JWT.
 
 > Stripe firma sus avisos con un HMAC y se comprueba. TropiPay también: manda tres firmas
-> —`signature`, `signaturev2` y `signaturev3`— que son `sha256(bankOrderCode + clientId +
-> clientSecret + importe)`. `tropipay-webhook` no toca el pedido si ninguna cuadra, y deja el aviso
+> —`signature`, `signaturev2` y `signaturev3`— que son `sha256(bankOrderCode + clientId + secret +
+> importe)`, con el secret tal cual en las primeras y pasado por `sha1` en la v3. `tropipay-webhook` no toca el pedido si ninguna cuadra, y deja el aviso
 > entero en el log. Esto no es un detalle: el comprador conoce el id de su propio pedido, porque
 > está en su URL, así que sin firma el aviso no prueba nada.
 

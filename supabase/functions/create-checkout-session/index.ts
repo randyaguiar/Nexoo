@@ -147,8 +147,13 @@ async function tropipayToken(
   const attempts = [
     {
       version: 'v3' as const,
-      path: '/api/v3/access/login',
-      body: { client_id: clientId, client_secret: clientSecret, scopes: TROPIPAY_SCOPES },
+      path: '/api/v3/access/token',
+      body: {
+        grant_type: 'client_credentials',
+        client_id: clientId,
+        client_secret: clientSecret,
+        scope: TROPIPAY_SCOPES.join(' '),
+      },
     },
     {
       version: 'v2' as const,

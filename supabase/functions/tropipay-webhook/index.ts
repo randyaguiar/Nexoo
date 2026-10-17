@@ -61,9 +61,9 @@ interface Callback {
   };
 }
 
-/** sha256 en hexadecimal, que es como firma TropiPay. */
-async function sha256(text: string): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+/** Hash en hexadecimal, que es el formato en el que firma TropiPay. */
+async function hex(algorithm: 'SHA-1' | 'SHA-256', text: string): Promise<string> {
+  const digest = await crypto.subtle.digest(algorithm, new TextEncoder().encode(text));
   return Array.from(new Uint8Array(digest))
     .map((byte) => byte.toString(16).padStart(2, '0'))
     .join('');
@@ -71,8 +71,10 @@ async function sha256(text: string): Promise<string> {
 
 /**
  * Si el aviso lo firmó TropiPay. Manda tres firmas y no dice cuál corresponde a
- * qué importe, así que se prueban todas las combinaciones: basta con que una
- * cuadre, porque para fabricar cualquiera de ellas hace falta el client secret.
+ * qué importe, así que se prueban todas las combinaciones de las dos recetas
+ * conocidas: la clásica, con el secret tal cual, y la de la v3, que mete el
+ * secret pasado por sha1. Basta con que una cuadre, porque para fabricar
+ * cualquiera de ellas hace falta el client secret.
  */
 async function signedByTropipay(
   signatures: (string | null | undefined)[],
@@ -86,10 +88,14 @@ async function signedByTropipay(
   const theirs = signatures.filter(Boolean) as string[];
   if (theirs.length === 0) return false;
 
+  const secrets = [clientSecret, await hex('SHA-1', clientSecret)];
+
   for (const amount of amounts) {
     if (amount === null || amount === undefined) continue;
-    const mine = await sha256(`${bankOrderCode}${clientId}${clientSecret}${amount}`);
-    if (theirs.includes(mine)) return true;
+    for (const secret of secrets) {
+      const mine = await hex('SHA-256', `${bankOrderCode}${clientId}${secret}${amount}`);
+      if (theirs.includes(mine)) return true;
+    }
   }
 
   return false;
