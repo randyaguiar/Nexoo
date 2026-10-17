@@ -122,27 +122,49 @@ async function token(): Promise<{ token: string; version: 'v2' | 'v3' } | null> 
   return null;
 }
 
-/** El movimiento que corresponde a un pedido, buscado por nuestra referencia. */
-async function findMovement(
+/**
+ * Los movimientos recientes de la cuenta.
+ *
+ * Sin filtro: su parámetro `query` rechaza la clave `reference` —"Filter key
+ * 'undefined' is not allowed"— y la sintaxis que sí acepta no está
+ * documentada. Se piden las últimas páginas y se cruzan aquí las referencias,
+ * que además ahorra una llamada por pedido.
+ */
+async function recentMovements(
   auth: { token: string; version: 'v2' | 'v3' },
-  orderId: string,
-): Promise<Movement | null> {
-  const query = encodeURIComponent(JSON.stringify({ reference: orderId }));
-  const response = await fetch(`${base}/api/${auth.version}/movements/?limit=5&query=${query}`, {
-    headers: { Authorization: `Bearer ${auth.token}`, Accept: 'application/json' },
-  });
+  pages = 3,
+): Promise<Movement[] | null> {
+  const all: Movement[] = [];
 
-  if (!response.ok) {
-    console.error('No se pudieron leer los movimientos', response.status, await response.text());
-    return null;
+  for (let page = 0; page < pages; page++) {
+    const response = await fetch(
+      `${base}/api/${auth.version}/movements/?limit=50&offset=${page * 50}`,
+      { headers: { Authorization: `Bearer ${auth.token}`, Accept: 'application/json' } },
+    );
+
+    if (!response.ok) {
+      console.error('No se pudieron leer los movimientos', response.status, await response.text());
+      return all.length > 0 ? all : null;
+    }
+
+    const body = (await response.json()) as { items?: Movement[] } | Movement[];
+    const items = Array.isArray(body) ? body : (body.items ?? []);
+
+    if (page === 0) {
+      // Qué trae cada movimiento no está claro en su documentación, y hace
+      // falta para cruzarlos. Solo los nombres de los campos: dentro van datos
+      // de clientes.
+      console.log(
+        'Movimientos:', items.length,
+        'campos =', items[0] ? Object.keys(items[0]).join(',') : 'ninguno',
+      );
+    }
+
+    all.push(...items);
+    if (items.length < 50) break;
   }
 
-  const body = (await response.json()) as { items?: Movement[] } | Movement[];
-  const items = Array.isArray(body) ? body : (body.items ?? []);
-
-  // El filtro por referencia es suyo y no se puede dar por bueno a ciegas: se
-  // vuelve a comprobar aquí, que es lo que ata el movimiento a este pedido.
-  return items.find((item) => item.reference === orderId) ?? null;
+  return all;
 }
 
 Deno.serve(async (request: Request): Promise<Response> => {
@@ -168,10 +190,14 @@ Deno.serve(async (request: Request): Promise<Response> => {
   const auth = await token();
   if (!auth) return json({ error: 'No se pudo autenticar contra TropiPay.' }, 502);
 
+  const movements = await recentMovements(auth);
+  if (!movements) return json({ error: 'No se pudieron leer los movimientos de TropiPay.' }, 502);
+
   const updated: string[] = [];
 
   for (const order of orders) {
-    const movement = await findMovement(auth, order.id);
+    // Lo que ata el movimiento a este pedido es la referencia, que es su id.
+    const movement = movements.find((item) => item.reference === order.id);
     if (!movement) continue;
 
     const state = (movement.state ?? '').toLowerCase();
