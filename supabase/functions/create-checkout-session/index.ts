@@ -148,11 +148,12 @@ async function tropipayToken(
     {
       version: 'v3' as const,
       path: '/api/v3/access/token',
+      // Sin `scope`: no es un parámetro de la v3, el token ya viene con los
+      // permisos que lleve la credencial.
       body: {
         grant_type: 'client_credentials',
         client_id: clientId,
         client_secret: clientSecret,
-        scope: TROPIPAY_SCOPES.join(' '),
       },
     },
     {
