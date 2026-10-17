@@ -58,6 +58,9 @@ interface Callback {
     signature?: string | null;
     signaturev2?: string | null;
     signaturev3?: string | null;
+    // El cargo con la tarjeta. De aquí sale `orderCode`, que es lo que pide su
+    // API para reembolsar y no es el mismo dato que `bankOrderCode`.
+    charges?: { orderCode?: string | null }[];
   };
 }
 
@@ -197,6 +200,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
     p_currency: notice.currency ?? order.charged_currency ?? 'EUR',
     p_amount: Number(order.charged_amount),
     p_fx_rate: order.fx_rate ?? null,
+    p_order_code: notice.charges?.[0]?.orderCode ?? null,
   });
 
   if (error) {

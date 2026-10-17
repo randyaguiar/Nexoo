@@ -635,6 +635,36 @@ export const api = {
 
       if (error) fail(error);
     },
+
+    /**
+     * Le pregunta a TropiPay por los pedidos que siguen esperando cobro. Sirve
+     * para los avisos que no llegaron: sin esto, un pedido pagado se queda en
+     * pendiente hasta que alguien lo mira a mano.
+     */
+    async reconcile(): Promise<{ checked: number; paid: number }> {
+      const { data, error } = await supabase.functions.invoke('tropipay-reconcile', {
+        body: {},
+      });
+
+      if (error) {
+        const context: unknown = (error as { context?: unknown }).context;
+        if (context instanceof Response) {
+          const payload = (await context.clone().json().catch(() => null)) as
+            | { error?: string }
+            | null;
+          if (payload?.error) throw new Error(payload.error);
+        }
+        if (error.name === 'FunctionsFetchError') {
+          throw new Error(
+            'No se pudo contactar con la función tropipay-reconcile. Comprueba que está desplegada en Supabase (supabase functions deploy tropipay-reconcile).',
+          );
+        }
+        throw new Error(error.message);
+      }
+
+      const result = (data ?? {}) as { checked?: number; paid?: number };
+      return { checked: Number(result.checked ?? 0), paid: Number(result.paid ?? 0) };
+    },
   },
 
   /**

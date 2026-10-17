@@ -393,3 +393,48 @@ do $$ begin
   end;
 end $$;
 \echo 'V OK: no se borra un negocio con pedidos'
+
+-- W) El código de operación se guarda: es lo que pide la pasarela para
+-- reembolsar, y el de seis argumentos sigue funcionando sin él.
+reset role;
+set role anon;
+select public.create_order(jsonb_build_object(
+  'buyerName','Rosa','buyerEmail','rosa@x.com','buyerPhone','+1305',
+  'recipientName','Iris','recipientPhone','+5352','recipientProvince','LaHabana',
+  'recipientMunicipality','Playa','recipientAddress','Calle 9',
+  'items', jsonb_build_array(jsonb_build_object(
+    'productId', (select id from public.products where name='Pastel'), 'quantity', 1))
+)) as woid \gset
+
+reset role;
+select case when public.mark_order_paid(:'woid','tropipay','BOC-2','EUR',4.68,0.9,'ORDER-CODE-2')
+  then 'W OK: marcado pagado con código de operación' else 'W FALLO' end;
+
+select case when payment_order_code = 'ORDER-CODE-2' and payment_charge_id = 'BOC-2'
+  then 'X OK: orderCode y bankOrderCode se guardan por separado' else 'X FALLO' end
+from public.orders where id=:'woid';
+
+-- Y) Los pedidos que esperan cobro: solo los que abrieron uno y con margen para
+-- que llegue el aviso.
+set role anon;
+select public.create_order(jsonb_build_object(
+  'buyerName','Tere','buyerEmail','tere@x.com','buyerPhone','+1305',
+  'recipientName','Olga','recipientPhone','+5352','recipientProvince','LaHabana',
+  'recipientMunicipality','Playa','recipientAddress','Calle 11',
+  'items', jsonb_build_array(jsonb_build_object(
+    'productId', (select id from public.products where name='Pastel'), 'quantity', 1))
+)) as yoid \gset
+
+reset role;
+select case when (select count(*) from public.orders_awaiting_payment('tropipay')) = 0
+  then 'Y OK: un pedido recién creado no se repasa todavía' else 'Y FALLO' end;
+
+update public.orders
+   set payment_provider = 'tropipay',
+       payment_reference = 'CARD-1',
+       charged_amount = 4.68,
+       created_at = now() - interval '1 hour'
+ where id = :'yoid';
+
+select case when (select count(*) from public.orders_awaiting_payment('tropipay')) = 1
+  then 'Z OK: con el cobro abierto y pasado el margen, sí' else 'Z FALLO' end;

@@ -275,9 +275,19 @@ supabase functions deploy tropipay-webhook
    que se intentó y falló. `TROPIPAY_PAID_STATES` solo entra en juego si algún aviso llegara sin
    `status`, y entonces se mira el número de `state` (5 es el de un cobro hecho).
 
-Las tres funciones van con `verify_jwt = false` (`supabase/config.toml`): a la primera la llama un
+Esas tres funciones van con `verify_jwt = false` (`supabase/config.toml`): a la primera la llama un
 comprador que puede no tener cuenta, y a las otras dos las llaman las pasarelas, que no mandan un
 JWT.
+
+4. **Cobros sin confirmar.** Un aviso se puede perder, y entonces el pedido se queda en pendiente
+   aunque el comprador haya pagado. `tropipay-reconcile` le pregunta a TropiPay por esos pedidos
+   —buscando el movimiento por la referencia, que es el id del pedido— y pone al día los que estén
+   cobrados, correos incluidos. Se lanza desde *Admin → Pagos*, y la llave necesita el permiso de
+   lectura de movimientos.
+
+```bash
+supabase functions deploy tropipay-reconcile
+```
 
 > Stripe firma sus avisos con un HMAC y se comprueba. TropiPay también: manda tres firmas
 > —`signature`, `signaturev2` y `signaturev3`— que son `sha256(bankOrderCode + clientId + secret +

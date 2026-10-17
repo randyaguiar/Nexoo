@@ -19,7 +19,10 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.tropipay-webhook]
-# TropiPay tampoco manda un JWT. Aquí no hay firma que comprobar, así que el
-# aviso solo sirve de empujón: lo que vale es la relectura del cobro contra su
-# API con nuestras credenciales.
+# TropiPay tampoco manda un JWT: la autenticidad se comprueba con la firma que
+# trae el aviso, hecha con nuestro client secret.
 verify_jwt = false
+
+[functions.tropipay-reconcile]
+# La llama el panel con el JWT del admin; la función exige además el rol owner.
+verify_jwt = true

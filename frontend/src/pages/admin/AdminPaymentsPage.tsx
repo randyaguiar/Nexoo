@@ -12,6 +12,7 @@ export function AdminPaymentsPage() {
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [checking, setChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -64,6 +65,30 @@ export function AdminPaymentsPage() {
       setError((e as Error).message);
     } finally {
       setSaving(false);
+    }
+  };
+
+  /**
+   * Repasa los pedidos que siguen esperando cobro. El aviso de TropiPay puede
+   * perderse, y entonces un pedido pagado se queda en pendiente sin que nadie
+   * se entere: esto va a preguntárselo.
+   */
+  const reconcile = async () => {
+    setChecking(true);
+    setError(null);
+    setNotice(null);
+
+    try {
+      const { checked, paid } = await api.payments.reconcile();
+      setNotice(
+        checked === 0
+          ? 'No hay pedidos esperando cobro.'
+          : `Revisados ${checked} pedidos pendientes; ${paid} estaban cobrados y han pasado a pagados.`,
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setChecking(false);
     }
   };
 
@@ -137,6 +162,20 @@ export function AdminPaymentsPage() {
             'Stripe cobra en dólares, así que este cambio no se usa.'
           )}
         </p>
+      </div>
+
+      <div className="card" style={{ marginTop: 'var(--space-4)' }}>
+        <h4 className="form-title">Cobros sin confirmar</h4>
+        <p className="field-hint">
+          TropiPay avisa cuando cobra, pero un aviso se puede perder y el pedido se queda en
+          pendiente aunque el comprador haya pagado. Esto se lo pregunta a TropiPay pedido por
+          pedido y pone al día los que estén cobrados.
+        </p>
+        <div className="row-actions" style={{ marginTop: 'var(--space-3)' }}>
+          <button type="button" className="secondary" disabled={checking} onClick={() => void reconcile()}>
+            {checking ? 'Revisando…' : 'Revisar cobros pendientes'}
+          </button>
+        </div>
       </div>
 
       <div className="row-actions" style={{ marginTop: 'var(--space-4)' }}>
