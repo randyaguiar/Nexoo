@@ -271,11 +271,9 @@ supabase functions deploy tropipay-webhook
    credencial atada a una IP devuelve `Forbidden` siempre.
 2. El aviso de pago no se configura en su panel: la URL se manda en cada cobro
    (`urlNotification`), apuntando a `tropipay-webhook`.
-3. `TROPIPAY_PAID_STATES` casi nunca hace falta: por defecto cuenta como pagado el estado `5`,
-   que es el que manda TropiPay cuando la tarjeta ya se ha cobrado. Que su panel lo siga enseñando
-   como *Pendiente* es la liquidación al saldo, no el cobro —igual que con Stripe, donde el pedido
-   se da por pagado aunque el dinero tarde días—. Si algún día usan otro número, se cambia con ese
-   secret (admite varios separados por comas) sin tocar código.
+3. Lo que decide que un cobro está hecho es el `status` del aviso: `OK` es pagado y `KO` es un pago
+   que se intentó y falló. `TROPIPAY_PAID_STATES` solo entra en juego si algún aviso llegara sin
+   `status`, y entonces se mira el número de `state` (5 es el de un cobro hecho).
 
 Las tres funciones van con `verify_jwt = false` (`supabase/config.toml`): a la primera la llama un
 comprador que puede no tener cuenta, y a las otras dos las llaman las pasarelas, que no mandan un

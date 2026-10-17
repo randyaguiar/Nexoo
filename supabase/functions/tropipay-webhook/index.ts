@@ -162,13 +162,16 @@ Deno.serve(async (request: Request): Promise<Response> => {
     return new Response('bad signature', { status: 200 });
   }
 
-  const paid = notice.stateStr
-    ? PAID_STATE_NAMES.includes(notice.stateStr.toLowerCase())
-    : PAID_STATES.includes(String(notice.state));
+  // Lo que manda es `status`: su documentación dice que OK significa cobrado y
+  // KO que el pago se intentó y falló. El estado numérico solo se mira si algún
+  // aviso llegara sin `status`.
+  const paid = payload.status
+    ? payload.status === 'OK'
+    : notice.stateStr
+      ? PAID_STATE_NAMES.includes(notice.stateStr.toLowerCase())
+      : PAID_STATES.includes(String(notice.state));
 
   if (!paid) {
-    // status KO con state 4 es un cobro rechazado por la pasarela; KO con otros
-    // estados, uno que se quedó a medias. Ninguno toca el pedido.
     console.log(
       `Pedido ${orderId} todavía no pagado: status=${payload.status} state=${notice.state}`,
     );
