@@ -69,6 +69,9 @@ interface Movement {
   currency?: string | null;
   state?: number | string | null;
   reference?: string | null;
+  completedAt?: string | null;
+  bookingDate?: string | null;
+  refundedAmount?: number | null;
 }
 
 /** Solo el owner repasa cobros: aquí se marcan pedidos como pagados. */
@@ -241,7 +244,18 @@ Deno.serve(async (request: Request): Promise<Response> => {
     if (!movement) continue;
 
     if (!movementIsPaid(movement.state)) {
-      console.log(`Pedido ${order.id}: TropiPay lo da como "${movement.state}", se deja pendiente`);
+      // Con el estado a secas no basta: su documentación describe los estados
+      // como texto y aquí llegan números, y el del aviso no es el mismo que el
+      // de esta lista. `completedAt` dice sin ambigüedad si el dinero terminó
+      // de moverse, así que se registra para poder decidir con datos.
+      console.log(
+        `Pedido ${order.id}: TropiPay lo da como "${movement.state}"`,
+        '| completedAt =', movement.completedAt ?? 'null',
+        '| amount =', movement.amount,
+        movement.currency ?? '',
+        '| devuelto =', movement.refundedAmount ?? 0,
+        '| esperado =', Math.round(Number(order.charged_amount) * 100),
+      );
       continue;
     }
 
