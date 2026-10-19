@@ -122,6 +122,27 @@ async function token(): Promise<{ token: string; version: 'v2' | 'v3' } | null> 
   return null;
 }
 
+/** Los nombres de lo que vino, y el tamaño de cada lista. Sin contenido. */
+function describe(body: unknown): string {
+  if (Array.isArray(body)) return `array(${body.length})`;
+  if (body === null || typeof body !== 'object') return typeof body;
+
+  return Object.entries(body as Record<string, unknown>)
+    .map(([key, value]) => `${key}:${Array.isArray(value) ? `array(${value.length})` : typeof value}`)
+    .join(' ');
+}
+
+/** La lista de movimientos, venga como venga envuelta. */
+function pickMovements(body: Record<string, unknown> | Movement[]): Movement[] {
+  if (Array.isArray(body)) return body as Movement[];
+
+  for (const value of Object.values(body)) {
+    if (Array.isArray(value)) return value as Movement[];
+  }
+
+  return [];
+}
+
 /**
  * Los movimientos recientes de la cuenta.
  *
@@ -147,16 +168,17 @@ async function recentMovements(
       return all.length > 0 ? all : null;
     }
 
-    const body = (await response.json()) as { items?: Movement[] } | Movement[];
-    const items = Array.isArray(body) ? body : (body.items ?? []);
+    const body = (await response.json()) as Record<string, unknown> | Movement[];
+    const items = pickMovements(body);
 
     if (page === 0) {
-      // Qué trae cada movimiento no está claro en su documentación, y hace
-      // falta para cruzarlos. Solo los nombres de los campos: dentro van datos
-      // de clientes.
+      // Ni la forma de la respuesta ni los campos de un movimiento están claros
+      // en su documentación, y hacen falta para cruzarlos. Se describe la
+      // respuesta sin volcarla: dentro van datos de clientes.
       console.log(
         'Movimientos:', items.length,
-        'campos =', items[0] ? Object.keys(items[0]).join(',') : 'ninguno',
+        '| respuesta =', describe(body),
+        '| campos =', items[0] ? Object.keys(items[0]).join(',') : 'ninguno',
       );
     }
 
