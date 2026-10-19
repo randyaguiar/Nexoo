@@ -36,8 +36,25 @@ const admin = createClient(
 
 const base = (Deno.env.get('TROPIPAY_API_URL') ?? 'https://sandbox.tropipay.me').replace(/\/+$/, '');
 
-/** Los estados de un movimiento que significan que el dinero entró. */
-const PAID_MOVEMENT_STATES = ['completed'];
+/**
+ * Los estados de un movimiento que significan que el dinero entró. Vienen como
+ * número —el 5 es el mismo que trae el aviso de un cobro hecho— aunque su
+ * documentación los describa como texto, así que se admiten las dos formas.
+ */
+const PAID_MOVEMENT_STATES = ['completed', 'complete', 'paid'];
+const PAID_MOVEMENT_CODES = (Deno.env.get('TROPIPAY_PAID_STATES') ?? '5')
+  .split(',')
+  .map((value: string) => value.trim())
+  .filter(Boolean);
+
+/** Si un movimiento está cobrado, venga su estado como número o como texto. */
+function movementIsPaid(state: number | string | null | undefined): boolean {
+  if (state === null || state === undefined) return false;
+  if (typeof state === 'number') return PAID_MOVEMENT_CODES.includes(String(state));
+  return (
+    PAID_MOVEMENT_STATES.includes(state.toLowerCase()) || PAID_MOVEMENT_CODES.includes(state.trim())
+  );
+}
 
 interface PendingOrder {
   id: string;
@@ -50,7 +67,7 @@ interface Movement {
   id?: number;
   amount?: number | null;
   currency?: string | null;
-  state?: string | null;
+  state?: number | string | null;
   reference?: string | null;
 }
 
@@ -177,6 +194,7 @@ async function recentMovements(
       // respuesta sin volcarla: dentro van datos de clientes.
       console.log(
         'Movimientos:', items.length,
+        '| con referencia =', items.filter((item) => item.reference).length,
         '| respuesta =', describe(body),
         '| campos =', items[0] ? Object.keys(items[0]).join(',') : 'ninguno',
       );
@@ -222,9 +240,8 @@ Deno.serve(async (request: Request): Promise<Response> => {
     const movement = movements.find((item) => item.reference === order.id);
     if (!movement) continue;
 
-    const state = (movement.state ?? '').toLowerCase();
-    if (!PAID_MOVEMENT_STATES.includes(state)) {
-      console.log(`Pedido ${order.id}: TropiPay lo da como "${state}", se deja pendiente`);
+    if (!movementIsPaid(movement.state)) {
+      console.log(`Pedido ${order.id}: TropiPay lo da como "${movement.state}", se deja pendiente`);
       continue;
     }
 
