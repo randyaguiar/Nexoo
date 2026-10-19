@@ -37,24 +37,20 @@ const admin = createClient(
 const base = (Deno.env.get('TROPIPAY_API_URL') ?? 'https://sandbox.tropipay.me').replace(/\/+$/, '');
 
 /**
- * Los estados de un movimiento que significan que el dinero entró. Vienen como
- * número —el 5 es el mismo que trae el aviso de un cobro hecho— aunque su
- * documentación los describa como texto, así que se admiten las dos formas.
+ * Los códigos de estado de un movimiento cobrado.
+ *
+ * El 5 es el que trae el aviso de un cobro recién hecho, pendiente de liquidar;
+ * el 2, el de uno ya liquidado. Son la misma operación en dos momentos, y los
+ * dos significan que la tarjeta se cobró. Se pueden cambiar con
+ * TROPIPAY_PAID_STATES si algún día usan otros.
  */
-const PAID_MOVEMENT_STATES = ['completed', 'complete', 'paid'];
-const PAID_MOVEMENT_CODES = (Deno.env.get('TROPIPAY_PAID_STATES') ?? '5')
+const PAID_MOVEMENT_CODES = (Deno.env.get('TROPIPAY_PAID_STATES') ?? '5,2')
   .split(',')
   .map((value: string) => value.trim())
   .filter(Boolean);
 
-/** Si un movimiento está cobrado, venga su estado como número o como texto. */
-function movementIsPaid(state: number | string | null | undefined): boolean {
-  if (state === null || state === undefined) return false;
-  if (typeof state === 'number') return PAID_MOVEMENT_CODES.includes(String(state));
-  return (
-    PAID_MOVEMENT_STATES.includes(state.toLowerCase()) || PAID_MOVEMENT_CODES.includes(state.trim())
-  );
-}
+/** Y si algún día los mandan como texto, que su documentación así los describe. */
+const PAID_MOVEMENT_NAMES = ['completed', 'complete', 'paid'];
 
 interface PendingOrder {
   id: string;
@@ -72,6 +68,28 @@ interface Movement {
   completedAt?: string | null;
   bookingDate?: string | null;
   refundedAmount?: number | null;
+}
+
+/**
+ * Si el movimiento dice que el dinero entró.
+ *
+ * `completedAt` es lo que manda: con fecha, la operación terminó, y eso no
+ * depende de interpretar un número. El estado se mira solo cuando no la trae,
+ * para no dejar fuera un cobro recién hecho que aún no ha liquidado. Un
+ * movimiento devuelto entero no cuenta: ese dinero ya no está.
+ */
+function movementIsPaid(movement: Movement): boolean {
+  const refunded = Number(movement.refundedAmount ?? 0);
+  if (refunded > 0 && refunded >= Number(movement.amount ?? 0)) return false;
+
+  if (movement.completedAt) return true;
+
+  const state = movement.state;
+  if (state === null || state === undefined) return false;
+  if (typeof state === 'number') return PAID_MOVEMENT_CODES.includes(String(state));
+  return (
+    PAID_MOVEMENT_NAMES.includes(state.toLowerCase()) || PAID_MOVEMENT_CODES.includes(state.trim())
+  );
 }
 
 /** Solo el owner repasa cobros: aquí se marcan pedidos como pagados. */
@@ -243,7 +261,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
     const movement = movements.find((item) => item.reference === order.id);
     if (!movement) continue;
 
-    if (!movementIsPaid(movement.state)) {
+    if (!movementIsPaid(movement)) {
       // Con el estado a secas no basta: su documentación describe los estados
       // como texto y aquí llegan números, y el del aviso no es el mismo que el
       // de esta lista. `completedAt` dice sin ambigüedad si el dinero terminó

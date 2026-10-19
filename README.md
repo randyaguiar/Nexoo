@@ -280,10 +280,11 @@ comprador que puede no tener cuenta, y a las otras dos las llaman las pasarelas,
 JWT.
 
 4. **Cobros sin confirmar.** Un aviso se puede perder, y entonces el pedido se queda en pendiente
-   aunque el comprador haya pagado. `tropipay-reconcile` le pregunta a TropiPay por esos pedidos
-   —buscando el movimiento por la referencia, que es el id del pedido— y pone al día los que estén
-   cobrados, correos incluidos. Se lanza desde *Admin → Pagos*, y la llave necesita el permiso de
-   lectura de movimientos.
+   aunque el comprador haya pagado. `tropipay-reconcile` pide los movimientos recientes y cruza la
+   referencia, que es el id del pedido; cuenta como cobrado el que trae `completedAt`, o el que está
+   en uno de los estados de `TROPIPAY_PAID_STATES` (5 recién cobrado, 2 ya liquidado). Un movimiento
+   devuelto entero no cuenta. Se lanza desde *Admin → Pagos*, y la llave necesita el permiso
+   *Obtener Listado de Movimientos*.
 
 ```bash
 supabase functions deploy tropipay-reconcile
