@@ -201,7 +201,12 @@ async function tropipayToken(
  * `payment_settings` y ese mismo cambio se anota en el pedido: lo que se le
  * paga al negocio se sigue calculando en dólares.
  */
-async function openTropipay(order: OrderRow, siteUrl: string, eurPerUsd: number): Promise<Opened> {
+async function openTropipay(
+  order: OrderRow,
+  siteUrl: string,
+  eurPerUsd: number,
+  methods: string[],
+): Promise<Opened> {
   const base = (Deno.env.get('TROPIPAY_API_URL') ?? 'https://sandbox.tropipay.me').replace(/\/+$/, '');
   const clientId = Deno.env.get('TROPIPAY_CLIENT_ID');
   const clientSecret = Deno.env.get('TROPIPAY_CLIENT_SECRET');
@@ -243,7 +248,9 @@ async function openTropipay(order: OrderRow, siteUrl: string, eurPerUsd: number)
     // Los recoge su propia página, que es también lo que hace `directPayment`
     // en false: primero pide los datos del comprador y luego la tarjeta.
     directPayment: false,
-    paymentMethods: ['EXT'],
+    // Lo que el owner haya dejado activo en el panel: tarjeta, saldo TropiPay,
+    // cripto o tarjeta regalo.
+    paymentMethods: methods,
     favorite: false,
     // No es la caducidad del enlace —eso es `expirationDate`—, sino los días
     // que TropiPay retiene el dinero antes de abonarlo: cero, que se liquide
@@ -303,7 +310,11 @@ Deno.serve(async (request: Request): Promise<Response> => {
       .select('id, status, total_usd, buyer_email, order_items(product_name, quantity, unit_price)')
       .eq('id', orderId)
       .maybeSingle(),
-    admin.from('payment_settings').select('provider, eur_per_usd').eq('id', true).maybeSingle(),
+    admin
+      .from('payment_settings')
+      .select('provider, eur_per_usd, payment_methods')
+      .eq('id', true)
+      .maybeSingle(),
   ]);
 
   if (error) {
@@ -322,12 +333,14 @@ Deno.serve(async (request: Request): Promise<Response> => {
   // Sin fila de ajustes se cobra con Stripe, que es como estaba antes.
   const provider = settings?.provider === 'tropipay' ? 'tropipay' : 'stripe';
   const eurPerUsd = Number(settings?.eur_per_usd ?? 0.92);
+  // Sin ajustes, tarjeta: es lo que funciona para cualquier comprador.
+  const methods = (settings?.payment_methods as string[] | null) ?? ['EXT'];
 
   let opened: Opened;
   try {
     opened =
       provider === 'tropipay'
-        ? await openTropipay(order, siteUrl, eurPerUsd)
+        ? await openTropipay(order, siteUrl, eurPerUsd, methods)
         : await openStripe(order, siteUrl);
   } catch (e) {
     console.error('No se pudo abrir el cobro con', provider, (e as Error).message);

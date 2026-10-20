@@ -255,7 +255,8 @@ supabase functions deploy tropipay-webhook
    `https://<project-ref>.supabase.co/functions/v1/stripe-webhook`, evento
    `checkout.session.completed`. Copia el *signing secret* y guárdalo como `STRIPE_WEBHOOK_SECRET`.
 
-**TropiPay** — cobra en euros.
+**TropiPay** — cobra en euros, y las formas de pago que ofrece su pasarela (tarjeta, saldo
+TropiPay, cripto, tarjeta regalo) se eligen en *Admin → Pagos*.
 
 1. Secrets: `TROPIPAY_CLIENT_ID`, `TROPIPAY_CLIENT_SECRET` y `TROPIPAY_API_URL`
    (`https://sandbox.tropipay.me` para probar). Opcionales: `TROPIPAY_ACCOUNT_ID` si tienes más de

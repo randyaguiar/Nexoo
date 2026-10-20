@@ -170,10 +170,41 @@ export const PAYMENT_PROVIDERS = [
 
 export type PaymentProvider = (typeof PAYMENT_PROVIDERS)[number]['value'];
 
+/**
+ * Las formas de pago que ofrece TropiPay en su pasarela. Stripe las ignora:
+ * allí siempre es tarjeta.
+ */
+export const PAYMENT_METHODS = [
+  {
+    value: 'EXT',
+    label: 'Tarjeta',
+    detail: 'Visa, Mastercard y demás. Es la que puede usar cualquier comprador.',
+  },
+  {
+    value: 'TPP',
+    label: 'Saldo TropiPay',
+    detail: 'Para quien ya tenga cuenta en TropiPay. Suele costarte menos comisión.',
+  },
+  {
+    value: 'CRYPTO',
+    label: 'Criptomonedas',
+    detail: 'Stablecoins como USDC o USDT.',
+  },
+  {
+    value: 'TPP_GIFTCARD',
+    label: 'Tarjeta regalo',
+    detail: 'Tarjetas regalo emitidas por TropiPay.',
+  },
+] as const;
+
+export type PaymentMethod = (typeof PAYMENT_METHODS)[number]['value'];
+
 export interface PaymentSettings {
   provider: PaymentProvider;
   /** Euros por dólar. Solo se usa con TropiPay. */
   eurPerUsd: number;
+  /** Formas de pago ofrecidas en la pasarela. Al menos una. */
+  methods: PaymentMethod[];
   updatedAt: string;
 }
 

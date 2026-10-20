@@ -1,7 +1,12 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../api/client';
 import { formatUsd } from '../../components/Money';
-import { PAYMENT_PROVIDERS, type PaymentProvider } from '../../api/types';
+import {
+  PAYMENT_METHODS,
+  PAYMENT_PROVIDERS,
+  type PaymentMethod,
+  type PaymentProvider,
+} from '../../api/types';
 
 /** Un pedido de ejemplo para que se vea el efecto del cambio antes de guardar. */
 const SAMPLE_USD = 100;
@@ -9,6 +14,7 @@ const SAMPLE_USD = 100;
 export function AdminPaymentsPage() {
   const [provider, setProvider] = useState<PaymentProvider>('stripe');
   const [rate, setRate] = useState('0.92');
+  const [methods, setMethods] = useState<PaymentMethod[]>(['EXT']);
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -25,6 +31,7 @@ export function AdminPaymentsPage() {
         if (cancelled) return;
         setProvider(settings.provider);
         setRate(String(settings.eurPerUsd));
+        setMethods(settings.methods);
         setUpdatedAt(settings.updatedAt);
       })
       .catch((e: Error) => {
@@ -48,12 +55,17 @@ export function AdminPaymentsPage() {
       return;
     }
 
+    if (methods.length === 0) {
+      setError('Deja al menos una forma de pago activa, o nadie podrá pagar.');
+      return;
+    }
+
     setSaving(true);
     setError(null);
     setNotice(null);
 
     try {
-      await api.payments.save(provider, parsedRate);
+      await api.payments.save(provider, parsedRate, methods);
       const settings = await api.payments.get();
       setUpdatedAt(settings.updatedAt);
       setNotice(
@@ -132,6 +144,36 @@ export function AdminPaymentsPage() {
             </span>
           </label>
         ))}
+      </div>
+
+      <div className="card" style={{ marginTop: 'var(--space-4)' }}>
+        <h4 className="form-title">Formas de pago</h4>
+        <p className="field-hint">
+          Lo que verá el comprador en la pasarela de TropiPay. Stripe no lo usa: allí siempre es
+          tarjeta.
+        </p>
+        <div className="payment-methods">
+          {PAYMENT_METHODS.map((option) => (
+            <label key={option.value} className="payment-method">
+              <input
+                type="checkbox"
+                checked={methods.includes(option.value)}
+                disabled={provider !== 'tropipay'}
+                onChange={(e) =>
+                  setMethods((current) =>
+                    e.target.checked
+                      ? [...current, option.value]
+                      : current.filter((m) => m !== option.value),
+                  )
+                }
+              />
+              <span>
+                <strong>{option.label}</strong>
+                <span className="meta">{option.detail}</span>
+              </span>
+            </label>
+          ))}
+        </div>
       </div>
 
       <div className="card" style={{ marginTop: 'var(--space-4)' }}>

@@ -18,6 +18,7 @@ import type {
   MunicipalityInput,
   Order,
   OrderStatus,
+  PaymentMethod,
   PaymentProvider,
   PaymentSettings,
   Product,
@@ -613,7 +614,7 @@ export const api = {
     async get(): Promise<PaymentSettings> {
       const { data, error } = await supabase
         .from('payment_settings')
-        .select('provider, eur_per_usd, updated_at')
+        .select('provider, eur_per_usd, payment_methods, updated_at')
         .eq('id', true)
         .maybeSingle();
 
@@ -623,14 +624,19 @@ export const api = {
       return {
         provider: data.provider as PaymentProvider,
         eurPerUsd: Number(data.eur_per_usd),
+        methods: (data.payment_methods as PaymentMethod[] | null) ?? ['EXT'],
         updatedAt: data.updated_at as string,
       };
     },
 
-    async save(provider: PaymentProvider, eurPerUsd: number): Promise<void> {
+    async save(
+      provider: PaymentProvider,
+      eurPerUsd: number,
+      methods: PaymentMethod[],
+    ): Promise<void> {
       const { error } = await supabase
         .from('payment_settings')
-        .update({ provider, eur_per_usd: eurPerUsd })
+        .update({ provider, eur_per_usd: eurPerUsd, payment_methods: methods })
         .eq('id', true);
 
       if (error) fail(error);

@@ -438,3 +438,28 @@ update public.orders
 
 select case when (select count(*) from public.orders_awaiting_payment('tropipay')) = 1
   then 'Z OK: con el cobro abierto y pasado el margen, sí' else 'Z FALLO' end;
+
+-- AA) Las formas de pago: al menos una, y solo las que admite la pasarela.
+reset role;
+update public.payment_settings set payment_methods = array['EXT','TPP'] where id;
+select case when payment_methods = array['EXT','TPP']
+  then 'AA OK: se guardan las formas de pago elegidas' else 'AA FALLO' end
+from public.payment_settings;
+
+do $$ begin
+  begin
+    update public.payment_settings set payment_methods = array[]::text[] where id;
+    raise exception 'FALLO AB: aceptó quedarse sin formas de pago';
+  exception when check_violation then null;
+  end;
+end $$;
+\echo 'AB OK: no se puede dejar al comprador sin forma de pagar'
+
+do $$ begin
+  begin
+    update public.payment_settings set payment_methods = array['PAYPAL'] where id;
+    raise exception 'FALLO AC: aceptó una forma de pago inventada';
+  exception when check_violation then null;
+  end;
+end $$;
+\echo 'AC OK: una forma de pago inventada no entra'
