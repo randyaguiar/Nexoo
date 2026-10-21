@@ -258,6 +258,11 @@ supabase functions deploy tropipay-webhook
 **TropiPay** — cobra en euros, y las formas de pago que ofrece su pasarela (tarjeta, saldo
 TropiPay, cripto, tarjeta regalo) se eligen en *Admin → Pagos*.
 
+> **Está implementada y probada, pero sin usar.** TropiPay no admite negocios de Estados Unidos,
+> que es donde está Nexoo, así que la pasarela activa es Stripe. El código se queda: funciona de
+> punta a punta contra su sandbox —cobro, aviso firmado, pedido pagado, correos y reconciliación de
+> cobros colgados— y basta con elegirla en el panel el día que haya una entidad fuera de EE.UU.
+
 1. Secrets: `TROPIPAY_CLIENT_ID`, `TROPIPAY_CLIENT_SECRET` y `TROPIPAY_API_URL`
    (`https://sandbox.tropipay.me` para probar). Opcionales: `TROPIPAY_ACCOUNT_ID` si tienes más de
    una cuenta y `TROPIPAY_REASON_ID` si el motivo por defecto no te sirve.
